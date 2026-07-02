@@ -47,7 +47,7 @@ fun MainNavigation(repository: DataRepository) {
     val bluetoothViewModel: BluetoothViewModel = viewModel { BluetoothViewModel(repository) }
     val chatViewModel: ChatViewModel = viewModel { ChatViewModel(repository) }
 
-    val backStack = rememberNavBackStack(initialKey = Splash as NavKey)
+    val backStack = rememberNavBackStack(Splash as NavKey)
     val currentKey = backStack.lastOrNull()
 
     // Determine if the current screen should show the bottom navigation bar
@@ -152,7 +152,7 @@ fun MainNavigation(repository: DataRepository) {
                 entryProvider = entryProvider {
                     
                     // 1. Splash Route
-                    entry<Splash> {
+                    entry<Splash> { _ ->
                         SplashScreen(
                             onTimeout = {
                                 backStack.removeLastOrNull()
@@ -162,7 +162,7 @@ fun MainNavigation(repository: DataRepository) {
                     }
 
                     // 2. Onboarding Route
-                    entry<Onboarding> {
+                    entry<Onboarding> { _ ->
                         OnboardingScreen(
                             onFinished = {
                                 backStack.removeLastOrNull()
@@ -172,7 +172,7 @@ fun MainNavigation(repository: DataRepository) {
                     }
 
                     // 3. Conversations History Route
-                    entry<ChatList> {
+                    entry<ChatList> { _ ->
                         ChatListScreen(
                             bluetoothViewModel = bluetoothViewModel,
                             onChatClick = { address, name ->
@@ -186,7 +186,7 @@ fun MainNavigation(repository: DataRepository) {
                     }
 
                     // 4. Scan / Discover Route
-                    entry<Nearby> {
+                    entry<Nearby> { _ ->
                         NearbyScreen(
                             viewModel = bluetoothViewModel,
                             onDeviceClick = { device ->
@@ -208,7 +208,7 @@ fun MainNavigation(repository: DataRepository) {
                     }
 
                     // 6. Settings preferences Route
-                    entry<Settings> {
+                    entry<Settings> { _ ->
                         SettingsScreen(
                             bluetoothViewModel = bluetoothViewModel
                         )

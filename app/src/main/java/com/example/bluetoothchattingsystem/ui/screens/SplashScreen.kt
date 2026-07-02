@@ -159,19 +159,21 @@ fun BluetoothPulse() {
             )
         }
 
-        // Central Icon Badge
+        // Central Icon Badge (App Logo)
         Box(
             modifier = Modifier
-                .size(56.dp)
+                .size(72.dp)
                 .clip(CircleShape)
-                .background(TheMint),
+                .background(Color.White)
+                .androidx.compose.foundation.border(1.5.dp, TheMint, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.Info,
-                contentDescription = "Connection Info",
-                tint = Color.White,
-                modifier = Modifier.size(28.dp)
+            androidx.compose.foundation.Image(
+                painter = painterResource(id = com.example.bluetoothchattingsystem.R.drawable.logoo),
+                contentDescription = "App Logo",
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
             )
         }
     }
