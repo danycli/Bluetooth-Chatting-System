@@ -101,3 +101,25 @@ android run --device=33071JEHN06517 --apks=app/build/outputs/apk/debug/app-debug
 ### Iteration 2
 *   **App Logo integration**: Set `logoo.png` as the Android Launcher icon and updated `SplashScreen.kt` to draw the app logo dynamically inside pulsing concentric rings.
 
+### Iteration 3
+*   **Permission Crash Fix**: Handled startup `SecurityException` thrown when instantiating the RFCOMM Bluetooth listener before Android 12+ runtime permissions are granted.
+*   **Auto-start Listening Recovery**: Programmed the server socket listener to automatically bind and start listening as soon as permissions are active (upon initiating a scan/discovery).
+*   **CPU / Thread Leak Resolution**: Addressed a busy-wait CPU loop inside `AcceptThread` when server socket creation fails due to missing permissions.
+
+### Iteration 4
+*   **Runtime Permission Request Flow**: Implemented automatic runtime permission dialog prompt in `MainActivity.kt` on startup for Bluetooth Scan, Connect, Advertise, coarse/fine Locations, and Notification posts.
+*   **Background / Foreground Notification System**: Registered the `"Aether Chat Messages"` Notification Channel and updated `DataRepository` to automatically trigger high-priority, clickable system notifications in the Android system drawer whenever messages are received.
+
+### Iteration 5
+*   **Application Renaming**: Renamed the app name resource and wordmark to `"B-Chat"`, replacing all visible instances.
+*   **Connection Failure Feedback**: Implemented main-thread Toast error notifications to explicitly alert users when a client socket fails to connect to a nearby device.
+
+### Iteration 6
+*   **Foreground Background Listening Service**: Implemented `ChatService.kt` as a Foreground Service of type `connectedDevice` (Android 10+) to keep the socket thread connection active in the background.
+*   **Persistent Mesh Status Notification**: Configured the background service to post a sticky ongoing notification (*"B-Chat Mesh Active"*) to prevent the operating system from reclaiming resources.
+*   **Application Scope Lifecycle binding**: Managed database and controller instances inside `BChatApplication.kt` and updated `MainActivity.kt` to fetch them from the application class, ensuring socket threads survive activity shutdown.
+
+
+
+
+

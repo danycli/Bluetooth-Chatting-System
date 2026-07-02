@@ -125,7 +125,7 @@ fun SettingsScreen(
                             fontSize = 16.sp
                         )
                         Text(
-                            text = "Bluetooth visible as \"Aether_9a4f\"",
+                            text = "Bluetooth visible as \"B-Chat_9a4f\"",
                             color = NearBlack.copy(alpha = 0.6f),
                             fontSize = 12.sp
                         )
@@ -266,7 +266,7 @@ fun SettingsScreen(
                 ) {
                     Column {
                         Text(
-                            text = "About Aether",
+                            text = "About B-Chat",
                             color = NearBlack,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 14.sp

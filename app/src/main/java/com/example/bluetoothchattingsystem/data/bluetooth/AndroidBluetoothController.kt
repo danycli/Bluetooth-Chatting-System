@@ -103,6 +103,7 @@ class AndroidBluetoothController(
     override fun startDiscovery() {
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) return
         _scannedDevices.value = emptyList()
+        startServer() // Ensure server is started once permissions are granted
         try {
             if (bluetoothAdapter.isDiscovering) {
                 bluetoothAdapter.cancelDiscovery()
@@ -187,11 +188,16 @@ class AndroidBluetoothController(
         closeConnection()
     }
 
-    private fun startServer() {
+    fun startServer() {
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) return
         if (acceptThread == null) {
-            acceptThread = AcceptThread().apply {
-                start()
+            try {
+                acceptThread = AcceptThread().apply {
+                    start()
+                }
+            } catch (e: SecurityException) {
+                Log.e("BluetoothController", "Security exception creating/starting AcceptThread", e)
+                acceptThread = null
             }
         }
     }
@@ -231,13 +237,25 @@ class AndroidBluetoothController(
         } catch (e: IOException) {
             Log.e("BluetoothController", "Accept socket failed to create", e)
             null
+        } catch (e: SecurityException) {
+            Log.e("BluetoothController", "Security exception creating server socket", e)
+            null
         }
 
         override fun run() {
+            if (serverSocket == null) {
+                Log.w("BluetoothController", "AcceptThread terminating because serverSocket is null")
+                synchronized(this@AndroidBluetoothController) {
+                    if (acceptThread == this) {
+                        acceptThread = null
+                    }
+                }
+                return
+            }
             var shouldLoop = true
             while (shouldLoop) {
                 val socket: BluetoothSocket? = try {
-                    serverSocket?.accept()
+                    serverSocket.accept()
                 } catch (e: IOException) {
                     Log.e("BluetoothController", "Socket accept failed or closed", e)
                     shouldLoop = false
@@ -259,6 +277,11 @@ class AndroidBluetoothController(
                     }
                 }
             }
+            synchronized(this@AndroidBluetoothController) {
+                if (acceptThread == this) {
+                    acceptThread = null
+                }
+            }
         }
 
         fun cancel() {
@@ -276,6 +299,9 @@ class AndroidBluetoothController(
             device.createRfcommSocketToServiceRecord(uuid)
         } catch (e: IOException) {
             Log.e("BluetoothController", "RFCOMM socket creation failed", e)
+            null
+        } catch (e: SecurityException) {
+            Log.e("BluetoothController", "SecurityException creating client socket", e)
             null
         }
 
@@ -298,6 +324,30 @@ class AndroidBluetoothController(
                     Log.e("BluetoothController", "Could not close client socket after fail", closeException)
                 }
                 _connectedDevice.value = null
+                val name = try { device.name } catch (se: SecurityException) { null } ?: "Device"
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    android.widget.Toast.makeText(
+                        context,
+                        "Unable to connect to $name. Ensure it is discoverable.",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
+            } catch (e: SecurityException) {
+                Log.e("BluetoothController", "SecurityException during client connect", e)
+                try {
+                    socket.close()
+                } catch (closeException: IOException) {
+                    Log.e("BluetoothController", "Could not close client socket after fail", closeException)
+                }
+                _connectedDevice.value = null
+                val name = try { device.name } catch (se: SecurityException) { null } ?: "Device"
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    android.widget.Toast.makeText(
+                        context,
+                        "Unable to connect to $name. Ensure it is discoverable.",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
             }
         }
 

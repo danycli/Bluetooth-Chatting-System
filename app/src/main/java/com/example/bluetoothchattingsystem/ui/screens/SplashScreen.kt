@@ -6,7 +6,9 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -84,7 +86,7 @@ fun SplashScreen(
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
-                    text = "Aether",
+                    text = "B-Chat",
                     style = MaterialTheme.typography.titleLarge,
                     color = TheMint,
                     fontSize = 36.sp,
@@ -165,10 +167,10 @@ fun BluetoothPulse() {
                 .size(72.dp)
                 .clip(CircleShape)
                 .background(Color.White)
-                .androidx.compose.foundation.border(1.5.dp, TheMint, CircleShape),
+                .border(1.5.dp, TheMint, CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            androidx.compose.foundation.Image(
+            Image(
                 painter = painterResource(id = com.example.bluetoothchattingsystem.R.drawable.logoo),
                 contentDescription = "App Logo",
                 modifier = Modifier

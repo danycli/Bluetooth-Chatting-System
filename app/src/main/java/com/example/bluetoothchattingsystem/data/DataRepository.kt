@@ -1,5 +1,14 @@
 package com.example.bluetoothchattingsystem.data
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.util.Log
+import androidx.core.app.NotificationCompat
+import com.example.bluetoothchattingsystem.R
 import com.example.bluetoothchattingsystem.data.bluetooth.BluetoothController
 import com.example.bluetoothchattingsystem.data.bluetooth.BluetoothDeviceDomain
 import com.example.bluetoothchattingsystem.data.local.MessageDao
@@ -12,10 +21,12 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class DataRepository(
+    private val context: Context,
     private val messageDao: MessageDao,
     val bluetoothController: BluetoothController
 ) {
     private val repositoryScope = CoroutineScope(Dispatchers.IO)
+    private val channelId = "aether_chat_channel"
 
     val scannedDevices: StateFlow<List<BluetoothDeviceDomain>> = bluetoothController.scannedDevices
     val connectedDevice: StateFlow<BluetoothDeviceDomain?> = bluetoothController.connectedDevice
@@ -24,6 +35,8 @@ class DataRepository(
     val lastMessages: Flow<List<MessageEntity>> = messageDao.getAllLastMessages()
 
     init {
+        createNotificationChannel()
+        
         // Collect incoming messages from Bluetooth controller and store them in Room
         repositoryScope.launch {
             bluetoothController.incomingMessages.collectLatest { messageText ->
@@ -37,8 +50,55 @@ class DataRepository(
                         isSent = false
                     )
                     messageDao.insertMessage(message)
+                    showNotification(message.senderName, messageText)
                 }
             }
+        }
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = "Aether Chat Messages"
+            val descriptionText = "Notifications for incoming offline chat messages"
+            val importance = NotificationManager.IMPORTANCE_HIGH
+            val channel = NotificationChannel(channelId, name, importance).apply {
+                description = descriptionText
+            }
+            val notificationManager =
+                context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun showNotification(senderName: String, messageText: String) {
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        // Create intent to open MainActivity when clicking notification
+        val intent = Intent(context, com.example.bluetoothchattingsystem.MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.drawable.logoo)
+            .setContentTitle(senderName)
+            .setContentText(messageText)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+
+        // Unique ID per timestamp ensures notifications stack in system drawer
+        val notificationId = System.currentTimeMillis().toInt()
+        try {
+            notificationManager.notify(notificationId, builder.build())
+        } catch (e: SecurityException) {
+            Log.e("DataRepository", "Missing notification posting permission", e)
         }
     }
 
