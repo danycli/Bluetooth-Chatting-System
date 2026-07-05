@@ -12,10 +12,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -90,6 +92,7 @@ fun ChatDetailScreen(
     val messages by chatViewModel.messages.collectAsState()
     val typedText by chatViewModel.typedText.collectAsState()
     val connectedDevice by chatViewModel.connectedDevice.collectAsState()
+    val scannedDevices by chatViewModel.scannedDevices.collectAsState()
 
     val isConnected = connectedDevice != null && connectedDevice!!.address == peerAddress && connectedDevice!!.connectionState == ConnectionState.CONNECTED
     val isConnecting = connectedDevice != null && connectedDevice!!.address == peerAddress && connectedDevice!!.connectionState == ConnectionState.CONNECTING
@@ -123,21 +126,33 @@ fun ChatDetailScreen(
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // User Avatar with initials
-                        val initials = peerDisplayName.take(2).uppercase()
+                        // User Avatar with custom profile mockup picture
+                        val peerAvatarId = remember(connectedDevice, scannedDevices, messages) {
+                            if (connectedDevice?.address == peerAddress) {
+                                connectedDevice!!.avatarId
+                            } else {
+                                val scanned = scannedDevices.find { it.address == peerAddress }
+                                if (scanned != null) {
+                                    scanned.avatarId
+                                } else {
+                                    messages.firstOrNull { !it.isSent }?.avatarId ?: 1
+                                }
+                            }
+                        }
+                        val peerAvatar = getAvatarById(peerAvatarId)
                         Box(
                             modifier = Modifier
                                 .size(38.dp)
                                 .clip(CircleShape)
-                                .background(if (isConnected) TheMint.copy(alpha = 0.15f) else IceLatte)
-                                .border(1.dp, if (isConnected) TheMint else LatteDark, CircleShape),
+                                .background(peerAvatar.backgroundColor)
+                                .border(1.dp, if (isConnected) TheMint else Color.Transparent, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = initials,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isConnected) TheMint else NearBlack,
-                                fontSize = 14.sp
+                            Icon(
+                                imageVector = peerAvatar.icon,
+                                contentDescription = "Peer Avatar",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
 
@@ -186,6 +201,7 @@ fun ChatDetailScreen(
                 )
             )
         },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         containerColor = SoftWhite
     ) { paddingValues ->
         Box(
@@ -196,6 +212,7 @@ fun ChatDetailScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .navigationBarsPadding()
                     .imePadding()
             ) {
                 // Reconnecting Warning Banner (Visible when disconnected or connecting)

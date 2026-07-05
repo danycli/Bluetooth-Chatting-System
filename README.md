@@ -161,6 +161,20 @@ android run --device=33071JEHN06517 --apks=app/build/outputs/apk/debug/app-debug
 *   **Connection Notifications**: Built push notifications in the repository to alert users when a connection with another node is successfully established.
 *   **Online/Offline Badges**: Added status tags directly inside the Chat List view next to peer names indicating their live connection states.
 
+### Iteration 13
+*   **Profile Picture Mockup Selection**: Provided 16 HSL background and icon mockups inside `SettingsScreen.kt` for local profile customisation, storing selection preferences inside `SharedPreferences`.
+
+### Iteration 14
+*   **BLE Low Energy Discovery Transport**: Migrated B-Chat's core communication backend from classic RFCOMM sockets to Bluetooth Low Energy (BLE) Advertisers, Scanners, and bidirectional GATT Server/Client exchanges, fully eliminating "make discoverable" system popups.
+*   **Real-time RSSI signal-to-distance mapping**: Read BLE signal levels directly in `NearbyScreen.kt` for live distance estimation and node sorting.
+
+### Iteration 15
+*   **Real-time Name & Avatar Sync (OS Cache Bypass)**: Packaged name and avatar configurations inside a formatted `Name|AvatarId` BLE scan response packet, bypassing Android's stale OS Bluetooth name cache.
+*   **Dynamic Room Database Profile Updates**: Triggered automated database updates (`updateSenderProfile()`) upon any connection state changes to immediately propagate peer rename details and custom profile mockup pics across all logged messages.
+*   **Rendered Custom Avatars**: Replaced generic initials avatars inside Chat List, Details App Bar, and Scanned Radar items with the peer's actual selected mockup profile avatar.
+
+
+
 
 
 

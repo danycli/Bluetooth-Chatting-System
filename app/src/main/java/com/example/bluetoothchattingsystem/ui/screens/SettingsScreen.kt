@@ -567,6 +567,7 @@ fun SettingsScreen(
                                                     prefs.edit().putInt("profile_avatar_id", avatar.id).apply()
                                                     selectedAvatarId = avatar.id
                                                     showAvatarDialog = false
+                                                    bluetoothViewModel.changeLocalDeviceName(localDeviceName)
                                                 },
                                             contentAlignment = Alignment.Center
                                         ) {

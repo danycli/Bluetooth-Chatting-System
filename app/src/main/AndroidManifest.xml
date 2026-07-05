@@ -28,10 +28,10 @@
         android:label="@string/app_name"
         android:roundIcon="@drawable/logoo"
         android:supportsRtl="true"
-        android:windowSoftInputMode="adjustResize"
         android:theme="@style/Theme.BluetoothChattingSystem">
         <activity
             android:name=".MainActivity"
+            android:windowSoftInputMode="adjustResize"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

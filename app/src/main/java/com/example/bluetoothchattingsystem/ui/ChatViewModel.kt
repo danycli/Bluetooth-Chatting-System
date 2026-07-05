@@ -28,6 +28,7 @@ class ChatViewModel(
     private var reconnectJob: Job? = null
     
     val connectedDevice: StateFlow<BluetoothDeviceDomain?> = repository.connectedDevice
+    val scannedDevices: StateFlow<List<BluetoothDeviceDomain>> = repository.scannedDevices
 
     val messages: StateFlow<List<MessageEntity>> = _selectedAddress
         .filterNotNull()

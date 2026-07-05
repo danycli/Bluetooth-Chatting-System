@@ -41,10 +41,12 @@ class ChatService : Service() {
             PendingIntent.FLAG_IMMUTABLE
         )
 
+        val largeIconBitmap = android.graphics.BitmapFactory.decodeResource(resources, R.drawable.logoo)
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
             .setContentTitle("B-Chat Mesh Active")
             .setContentText("Listening for offline Bluetooth messages...")
-            .setSmallIcon(R.drawable.logoo)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setLargeIcon(largeIconBitmap)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
 

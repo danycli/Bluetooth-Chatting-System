@@ -11,5 +11,6 @@ data class MessageEntity(
     val messageText: String,
     val timestamp: Long,
     val isSent: Boolean,
-    val isRead: Boolean = true
+    val isRead: Boolean = true,
+    val avatarId: Int = 1
 )

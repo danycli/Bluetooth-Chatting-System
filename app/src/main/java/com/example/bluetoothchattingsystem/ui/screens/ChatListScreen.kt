@@ -407,20 +407,21 @@ fun ChatListItem(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                // Avatar badge with initials
+                // Avatar badge with custom profile picture mockup
+                val peerAvatar = getAvatarById(chat.avatarId)
                 Box(
                     modifier = Modifier
                         .size(46.dp)
                         .clip(CircleShape)
-                        .background(if (isConnected) TheMint.copy(alpha = 0.15f) else IceLatte)
-                        .border(1.dp, if (isConnected) TheMint else LatteDark, CircleShape),
+                        .background(peerAvatar.backgroundColor)
+                        .border(1.dp, if (isConnected) TheMint else Color.Transparent, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = initials,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isConnected) TheMint else NearBlack,
-                        fontSize = 16.sp
+                    Icon(
+                        imageVector = peerAvatar.icon,
+                        contentDescription = "Peer Avatar",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
                     )
                     // Connection indicator dot
                     Box(

@@ -50,7 +50,8 @@ class DataRepository(
                         messageText = messageText,
                         timestamp = System.currentTimeMillis(),
                         isSent = false,
-                        isRead = false // mark incoming messages as unread
+                        isRead = false, // mark incoming messages as unread
+                        avatarId = currentDevice.avatarId
                     )
                     messageDao.insertMessage(message)
                     showNotification(message.senderName, messageText)
@@ -63,16 +64,14 @@ class DataRepository(
             var lastConnectedAddress: String? = null
             bluetoothController.connectedDevice.collect { device ->
                 if (device != null && device.connectionState == ConnectionState.CONNECTED) {
+                    // Update database profiles on any connection emission to catch live name/avatar changes
+                    if (!device.name.isNullOrBlank()) {
+                        messageDao.updateSenderProfile(device.address, device.name, device.avatarId)
+                    }
+                    
                     if (lastConnectedAddress != device.address) {
                         lastConnectedAddress = device.address
-                        
-                        // 1. Show notification
                         showConnectionNotification(device.name ?: "Unknown Device")
-                        
-                        // 2. Update DB names
-                        if (!device.name.isNullOrBlank()) {
-                            messageDao.updateSenderName(device.address, device.name)
-                        }
                     }
                 } else if (device == null || device.connectionState == ConnectionState.DISCONNECTED) {
                     lastConnectedAddress = null
@@ -110,8 +109,10 @@ class DataRepository(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val largeIconBitmap = android.graphics.BitmapFactory.decodeResource(context.resources, R.drawable.logoo)
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.logoo)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setLargeIcon(largeIconBitmap)
             .setContentTitle(senderName)
             .setContentText(messageText)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -156,7 +157,8 @@ class DataRepository(
                 senderName = currentDevice.name ?: "Unknown",
                 messageText = text,
                 timestamp = System.currentTimeMillis(),
-                isSent = true
+                isSent = true,
+                avatarId = currentDevice.avatarId
             )
             messageDao.insertMessage(message)
         }
@@ -209,8 +211,10 @@ class DataRepository(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val largeIconBitmap = android.graphics.BitmapFactory.decodeResource(context.resources, R.drawable.logoo)
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.logoo)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setLargeIcon(largeIconBitmap)
             .setContentTitle("B-Chat Node Connected")
             .setContentText("Successfully connected to peer: $deviceName")
             .setPriority(NotificationCompat.PRIORITY_HIGH)

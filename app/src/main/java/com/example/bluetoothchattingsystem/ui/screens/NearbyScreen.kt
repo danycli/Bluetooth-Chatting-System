@@ -250,8 +250,7 @@ fun NearbyScreen(
     // Long Press Device Info Alert dialog
     if (infoDevice != null) {
         val dev = infoDevice!!
-        val hash = remember(dev.address) { Math.abs(dev.address.hashCode()) }
-        val rssi = -60 - (hash % 25)
+        val rssi = dev.rssi
         val distance = remember(rssi) {
             val calculated = Math.pow(10.0, (-69 - rssi) / 20.0)
             String.format(Locale.US, "%.1f meters", calculated)
@@ -440,16 +439,16 @@ fun DeviceListItemCard(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val hash = remember(device.address) { Math.abs(device.address.hashCode()) }
-    val rssi = -60 - (hash % 25)
+    val rssi = device.rssi
     val distance = remember(rssi) {
         val calculated = Math.pow(10.0, (-69 - rssi) / 20.0)
         String.format(Locale.US, "%.1f m", calculated)
     }
     val bars = when {
-        rssi > -68 -> 4
-        rssi > -76 -> 3
-        else -> 2
+        rssi > -65 -> 4
+        rssi > -75 -> 3
+        rssi > -85 -> 2
+        else -> 1
     }
 
     Card(
@@ -475,20 +474,20 @@ fun DeviceListItemCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                val initials = (device.name ?: "Unnamed").take(2).uppercase()
+                val peerAvatar = getAvatarById(device.avatarId)
                 Box(
                     modifier = Modifier
                         .size(46.dp)
                         .clip(CircleShape)
-                        .background(if (device.connectionState == ConnectionState.CONNECTED) TheMint.copy(alpha = 0.15f) else IceLatte)
-                        .border(1.dp, if (device.connectionState == ConnectionState.CONNECTED) TheMint else LatteDark, CircleShape),
+                        .background(peerAvatar.backgroundColor)
+                        .border(1.dp, if (device.connectionState == ConnectionState.CONNECTED) TheMint else Color.Transparent, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = initials,
-                        fontWeight = FontWeight.Bold,
-                        color = if (device.connectionState == ConnectionState.CONNECTED) TheMint else NearBlack,
-                        fontSize = 16.sp
+                    Icon(
+                        imageVector = peerAvatar.icon,
+                        contentDescription = "Peer Avatar",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
 
