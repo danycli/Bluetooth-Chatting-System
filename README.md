@@ -173,6 +173,9 @@ android run --device=33071JEHN06517 --apks=app/build/outputs/apk/debug/app-debug
 *   **Dynamic Room Database Profile Updates**: Triggered automated database updates (`updateSenderProfile()`) upon any connection state changes to immediately propagate peer rename details and custom profile mockup pics across all logged messages.
 *   **Rendered Custom Avatars**: Replaced generic initials avatars inside Chat List, Details App Bar, and Scanned Radar items with the peer's actual selected mockup profile avatar.
 
+### Iteration 16
+*   **Notification Icon Sizing & Color Corrections**: Replaced the solid app logo with the transparent vector `ic_launcher_foreground` for notification small icons, solving Android's grey-block forcing bug. Converted the full-color `logoo.png` app logo into a Bitmap to populate the notification's `largeIcon`, rendering B-Chat's actual logo in full color.
+
 
 
 
