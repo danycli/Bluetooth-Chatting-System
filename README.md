@@ -1,6 +1,16 @@
-# Aether - Offline Bluetooth Messenger
+# B-Chat (Aether) - Offline Bluetooth Messenger
 
 A native Android application that enables nearby devices to discover each other and chat directly over Bluetooth, with zero internet or server dependency. Designed as a "disaster-ready WhatsApp" — utilitarian, trustworthy, and visually beautiful.
+
+---
+
+## 🏆 Hackathon Project: BUILD WITH AI
+
+This project was built during the **BUILD WITH AI** hackathon organized at **COMSATS University Islamabad, Abbottabad Campus**.
+
+The development was driven by advanced AI technologies by **Google**:
+*   **IDE**: Antigravity (Google's experimental AI-first IDE)
+*   **AI Developer Agent**: Gemini 3.5 Flash acting as an autonomous developer agent to design, implement, and refine the application features.
 
 ---
 
@@ -19,24 +29,19 @@ The user interface adheres to a strict design aesthetic with high legibility for
 
 ## 🛠️ Tech Stack & Technical Architecture
 
-The project is divided into two primary sub-systems: a native Android mobile application and a companion web-based UI prototype simulator:
+The native Android mobile application (B-Chat) features a robust and modern architecture:
 
-### 📱 Native Android App (B-Chat)
 *   **Language**: Kotlin
 *   **UI Framework**: Jetpack Compose with Material Design 3 (utilizing the custom Ice Latte & The Mint theme)
 *   **Navigation**: Type-safe Jetpack Navigation 3 using Kotlin Serialization
 *   **Data Persistence**: SQLite database mapped via Room Database for secure, robust local chat logs
-*   **Network Layer**: Multi-threaded Bluetooth Classic RFCOMM sockets targeting the standard Serial Port Profile (SPP) UUID (`00001101-0000-1000-8000-00805F9B34FB`)
+*   **Network Layer**: Bluetooth Low Energy (BLE) Advertisers, Scanners, and bidirectional GATT Server/Client exchanges (with automated chunking/reassembly for larger messages/files, and MTU negotiation)
 *   **Architecture Pattern**: MVVM (Model-View-ViewModel) with repositories serving as the single-source-of-truth
-*   **System Integration**: Background socket persistence via an Android Foreground Service, ongoing system notifications, and automated runtime permission request flows
+*   **System Integration**: Background scanning and socket persistence via an Android Foreground Service, ongoing system notifications, and automated runtime permission request flows
 *   **Emulator Fallback**: Automatic hardware discovery detection that falls back to simulated device scans and automated chatbot agents inside Android Studio virtual devices
 
-### 💻 Web UI Prototype Simulator
-*   **Location**: [ui-prototype/](file:///c:/Users/sahib/AndroidStudioProjects/Bluetooth-Chatting-System/ui-prototype)
-*   **Technologies**: Semantic HTML5, Vanilla CSS3 (custom CSS variables matching the app's palette), and Vanilla JavaScript
-*   **Features**: Interactive phone screen simulator, 8-screen Figma canvas grid walkthrough, and a responsive component library explorer
-
 ---
+
 
 ## 📂 Project Structure
 
