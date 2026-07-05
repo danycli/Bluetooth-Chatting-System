@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.util.UUID
 
 @SuppressLint("MissingPermission")
@@ -140,10 +141,12 @@ class AndroidBluetoothController(
             super.onConnectionStateChange(device, status, newState)
             Log.d("GattServer", "onConnectionStateChange: device=${device.address}, newState=$newState, status=$status")
             if (newState == BluetoothProfile.STATE_CONNECTED) {
+                val scannedInfo = _scannedDevices.value.find { it.address == device.address }
                 val domainDevice = BluetoothDeviceDomain(
-                    name = device.name ?: "B-Chat Node",
+                    name = scannedInfo?.name ?: device.name?.split("|")?.firstOrNull() ?: "B-Chat Node",
                     address = device.address,
-                    connectionState = ConnectionState.CONNECTED
+                    connectionState = ConnectionState.CONNECTED,
+                    avatarId = scannedInfo?.avatarId ?: device.name?.split("|")?.getOrNull(1)?.toIntOrNull() ?: 1
                 )
                 _connectedDevice.value = domainDevice
                 activeGattDevice = device
@@ -168,7 +171,10 @@ class AndroidBluetoothController(
             if (value != null) {
                 val message = String(value, Charsets.UTF_8)
                 scope.launch {
-                    _incomingMessages.emit(message)
+                    val consumed = handleIncomingPacket(device.address, message)
+                    if (!consumed) {
+                        _incomingMessages.emit(message)
+                    }
                 }
             }
             if (responseNeeded) {
@@ -188,6 +194,16 @@ class AndroidBluetoothController(
             super.onDescriptorWriteRequest(device, requestId, descriptor, preparedWrite, responseNeeded, offset, value)
             if (responseNeeded) {
                 gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
+            }
+            
+            // Client registered for notifications. Send Server's profile sync payload immediately.
+            val prefs = context.getSharedPreferences("bchat_prefs", Context.MODE_PRIVATE)
+            val localName = _localDeviceName.value
+            val localAvatarId = prefs.getInt("profile_avatar_id", 1)
+            val profilePacket = "__PROFILE_SYNC__|$localName|$localAvatarId"
+            scope.launch {
+                delay(500)
+                sendMessage(profilePacket)
             }
         }
     }
@@ -218,11 +234,13 @@ class AndroidBluetoothController(
                         gatt.writeDescriptor(descriptor)
                     }
                 }
-
+ 
+                val scannedInfo = _scannedDevices.value.find { it.address == gatt.device.address }
                 val domainDevice = BluetoothDeviceDomain(
-                    name = gatt.device.name ?: "B-Chat Node",
+                    name = scannedInfo?.name ?: gatt.device.name?.split("|")?.firstOrNull() ?: "B-Chat Node",
                     address = gatt.device.address,
-                    connectionState = ConnectionState.CONNECTED
+                    connectionState = ConnectionState.CONNECTED,
+                    avatarId = scannedInfo?.avatarId ?: gatt.device.name?.split("|")?.getOrNull(1)?.toIntOrNull() ?: 1
                 )
                 _connectedDevice.value = domainDevice
                 activeGattDevice = gatt.device
@@ -232,13 +250,31 @@ class AndroidBluetoothController(
             }
         }
 
+        override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+            super.onDescriptorWrite(gatt, descriptor, status)
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                // Client registered notifications. Send Client's profile sync payload immediately.
+                val prefs = context.getSharedPreferences("bchat_prefs", Context.MODE_PRIVATE)
+                val localName = _localDeviceName.value
+                val localAvatarId = prefs.getInt("profile_avatar_id", 1)
+                val profilePacket = "__PROFILE_SYNC__|$localName|$localAvatarId"
+                scope.launch {
+                    delay(500)
+                    sendMessage(profilePacket)
+                }
+            }
+        }
+
         override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
             super.onCharacteristicChanged(gatt, characteristic)
             val value = characteristic.value
             if (value != null) {
                 val message = String(value, Charsets.UTF_8)
                 scope.launch {
-                    _incomingMessages.emit(message)
+                    val consumed = handleIncomingPacket(gatt.device.address, message)
+                    if (!consumed) {
+                        _incomingMessages.emit(message)
+                    }
                 }
             }
         }
@@ -365,10 +401,20 @@ class AndroidBluetoothController(
     override fun changeLocalDeviceName(name: String): Boolean {
         if (bluetoothAdapter == null) return false
         return try {
-            bluetoothAdapter.name = name
-            _localDeviceName.value = name
+            val prefs = context.getSharedPreferences("bchat_prefs", Context.MODE_PRIVATE)
+            val avatarId = prefs.getInt("profile_avatar_id", 1)
+            val cleanName = name.replace("|", "")
+            val rawName = "$cleanName|$avatarId"
             
-            // Restart advertising to update the friendly name in the scan response packet
+            bluetoothAdapter.name = rawName
+            _localDeviceName.value = cleanName
+            
+            // Broadcast the profile update to the currently connected device in real-time
+            val profilePacket = "__PROFILE_SYNC__|$cleanName|$avatarId"
+            scope.launch {
+                sendMessage(profilePacket)
+            }
+
             if (bluetoothAdapter.isEnabled) {
                 stopAdvertising()
                 startAdvertising()
@@ -436,6 +482,38 @@ class AndroidBluetoothController(
         
         activeGattDevice = null
         _connectedDevice.value = null
+    }
+
+    private fun handleIncomingPacket(deviceAddress: String, rawText: String): Boolean {
+        if (rawText.startsWith("__PROFILE_SYNC__|")) {
+            val parts = rawText.split("|")
+            val name = parts.getOrNull(1) ?: "B-Chat Node"
+            val avatarId = parts.getOrNull(2)?.toIntOrNull() ?: 1
+            
+            Log.d("BleController", "Received Profile Sync Packet from $deviceAddress: Name=$name, Avatar=$avatarId")
+            
+            // 1. Update _connectedDevice if it matches
+            _connectedDevice.update { current ->
+                if (current?.address == deviceAddress) {
+                    current.copy(name = name, avatarId = avatarId)
+                } else {
+                    current
+                }
+            }
+            
+            // 2. Update _scannedDevices
+            _scannedDevices.update { list ->
+                list.map { dev ->
+                    if (dev.address == deviceAddress) {
+                        dev.copy(name = name, avatarId = avatarId)
+                    } else {
+                        dev
+                    }
+                }
+            }
+            return true
+        }
+        return false
     }
 
     // BLE Advertiser logic

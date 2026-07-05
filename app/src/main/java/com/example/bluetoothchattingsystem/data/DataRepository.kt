@@ -111,7 +111,7 @@ class DataRepository(
 
         val largeIconBitmap = android.graphics.BitmapFactory.decodeResource(context.resources, R.drawable.logoo)
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
             .setLargeIcon(largeIconBitmap)
             .setContentTitle(senderName)
             .setContentText(messageText)
@@ -213,7 +213,7 @@ class DataRepository(
 
         val largeIconBitmap = android.graphics.BitmapFactory.decodeResource(context.resources, R.drawable.logoo)
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
             .setLargeIcon(largeIconBitmap)
             .setContentTitle("B-Chat Node Connected")
             .setContentText("Successfully connected to peer: $deviceName")
