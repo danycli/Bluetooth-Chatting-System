@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -93,6 +94,10 @@ fun ChatDetailScreen(
     val isConnected = connectedDevice != null && connectedDevice!!.address == peerAddress && connectedDevice!!.connectionState == ConnectionState.CONNECTED
     val isConnecting = connectedDevice != null && connectedDevice!!.address == peerAddress && connectedDevice!!.connectionState == ConnectionState.CONNECTING
 
+    val peerDisplayName = remember(messages, peerName) {
+        messages.lastOrNull { !it.isSent }?.senderName ?: peerName
+    }
+
     val listState = rememberLazyListState()
 
     // Dialog state for edit/delete message actions
@@ -119,7 +124,7 @@ fun ChatDetailScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // User Avatar with initials
-                        val initials = peerName.take(2).uppercase()
+                        val initials = peerDisplayName.take(2).uppercase()
                         Box(
                             modifier = Modifier
                                 .size(38.dp)
@@ -140,7 +145,7 @@ fun ChatDetailScreen(
 
                         Column {
                             Text(
-                                text = peerName,
+                                text = peerDisplayName,
                                 color = NearBlack,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
@@ -189,7 +194,9 @@ fun ChatDetailScreen(
                 .padding(paddingValues)
         ) {
             Column(
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding()
             ) {
                 // Reconnecting Warning Banner (Visible when disconnected or connecting)
                 AnimatedVisibility(

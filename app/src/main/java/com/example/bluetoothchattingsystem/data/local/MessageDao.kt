@@ -29,4 +29,10 @@ interface MessageDao {
 
     @Query("UPDATE messages SET messageText = :newText WHERE id = :messageId")
     suspend fun updateMessageText(messageId: Int, newText: String): Int
+
+    @Query("UPDATE messages SET senderName = :newName WHERE senderAddress = :senderAddress")
+    suspend fun updateSenderName(senderAddress: String, newName: String): Int
+
+    @Query("UPDATE messages SET isRead = 1 WHERE senderAddress = :senderAddress AND isRead = 0")
+    suspend fun markConversationAsRead(senderAddress: String): Int
 }

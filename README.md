@@ -155,6 +155,13 @@ android run --device=33071JEHN06517 --apks=app/build/outputs/apk/debug/app-debug
 *   **Nearby Screen Overhaul**: Created concentric pulsing waves, breathing skeleton shimmer loaders, dynamic signal/distance indicators, and long-press Device Diagnostics alerts.
 *   **Settings Screen Overhaul**: Restructured Profile cards (showing MAC address and discoverability status), organized toggles into preference cards, separated danger zones, and created detailed About sections.
 
+### Iteration 12
+*   **Dynamic Peer Name Updates**: Observed connection state changes in the repository to update stored names in the Room database, resolving renamed peer display issues.
+*   **Unread Badge Auto-Dismissal**: Added a reactive `isRead` database flag to `MessageEntity` and triggered Room updates to clear unread counts as soon as a conversation details view is opened.
+*   **Connection Notifications**: Built push notifications in the repository to alert users when a connection with another node is successfully established.
+*   **Online/Offline Badges**: Added status tags directly inside the Chat List view next to peer names indicating their live connection states.
+
+
 
 
 

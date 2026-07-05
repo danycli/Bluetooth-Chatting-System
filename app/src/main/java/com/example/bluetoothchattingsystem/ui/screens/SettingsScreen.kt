@@ -1,5 +1,6 @@
 package com.example.bluetoothchattingsystem.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,14 +21,26 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -54,16 +67,46 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bluetoothchattingsystem.theme.AlertRed
 import com.example.bluetoothchattingsystem.theme.IceLatte
 import com.example.bluetoothchattingsystem.theme.LatteDark
 import com.example.bluetoothchattingsystem.theme.NearBlack
-import com.example.bluetoothchattingsystem.theme.SoftWhite
 import com.example.bluetoothchattingsystem.theme.TheMint
 import com.example.bluetoothchattingsystem.ui.BluetoothViewModel
+
+data class AvatarMockup(
+    val id: Int,
+    val icon: ImageVector,
+    val backgroundColor: Color
+)
+
+fun getAvatarById(id: Int): AvatarMockup {
+    val list = listOf(
+        AvatarMockup(1, Icons.Default.Person, Color(0xFF00A198)),
+        AvatarMockup(2, Icons.Default.Favorite, Color(0xFFFF5252)),
+        AvatarMockup(3, Icons.Default.Star, Color(0xFFFFCA28)),
+        AvatarMockup(4, Icons.Default.Face, Color(0xFF42A5F5)),
+        AvatarMockup(5, Icons.Default.Build, Color(0xFF66BB6A)),
+        AvatarMockup(6, Icons.Default.Lock, Color(0xFFAB47BC)),
+        AvatarMockup(7, Icons.Default.Home, Color(0xFFFF7043)),
+        AvatarMockup(8, Icons.Default.LocationOn, Color(0xFF5C6BC0)),
+        AvatarMockup(9, Icons.Default.ThumbUp, Color(0xFFEC407A)),
+        AvatarMockup(10, Icons.Default.Settings, Color(0xFF26A69A)),
+        AvatarMockup(11, Icons.Default.Info, Color(0xFF26C6DA)),
+        AvatarMockup(12, Icons.Default.ShoppingCart, Color(0xFF78909C)),
+        AvatarMockup(13, Icons.Default.Email, Color(0xFF8D6E63)),
+        AvatarMockup(14, Icons.Default.Call, Color(0xFFD4AF37)),
+        AvatarMockup(15, Icons.Default.Check, Color(0xFF00796B)),
+        AvatarMockup(16, Icons.Default.Warning, Color(0xFFD32F2F))
+    )
+    return list.firstOrNull { it.id == id } ?: list[0]
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,6 +117,12 @@ fun SettingsScreen(
 ) {
     val isBluetoothEnabled by bluetoothViewModel.isBluetoothEnabled.collectAsState()
     val localDeviceName by bluetoothViewModel.localDeviceName.collectAsState()
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { context.getSharedPreferences("bchat_prefs", android.content.Context.MODE_PRIVATE) }
+    
+    var selectedAvatarId by remember { mutableStateOf(prefs.getInt("profile_avatar_id", 1)) }
+    var showAvatarDialog by remember { mutableStateOf(false) }
 
     var showEditNameDialog by remember { mutableStateOf(false) }
     var editNameInput by remember { mutableStateOf("") }
@@ -120,7 +169,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             
-            // Section 1: Profile Info Card (Editable Device Name)
+            // Section 1: Profile Info Card (Editable Device Name & Mockup Avatars chooser)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -128,36 +177,37 @@ fun SettingsScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column(
-                    modifier = Modifier
-                        .clickable {
-                            editNameInput = localDeviceName
-                            showEditNameDialog = true
-                        }
-                        .padding(16.dp)
+                    modifier = Modifier.padding(16.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        val currentAvatar = getAvatarById(selectedAvatarId)
                         Box(
                             modifier = Modifier
-                                .size(54.dp)
+                                .size(56.dp)
                                 .clip(CircleShape)
-                                .background(TheMint.copy(alpha = 0.15f))
-                                .border(1.dp, TheMint, CircleShape),
+                                .background(currentAvatar.backgroundColor)
+                                .clickable { showAvatarDialog = true },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = "ME",
-                                fontWeight = FontWeight.Bold,
-                                color = TheMint,
-                                fontSize = 20.sp
+                            Icon(
+                                imageVector = currentAvatar.icon,
+                                contentDescription = "Profile Avatar Mockup",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
                             )
                         }
                         
                         Spacer(modifier = Modifier.width(16.dp))
                         
                         Column(
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    editNameInput = localDeviceName
+                                    showEditNameDialog = true
+                                }
                         ) {
                             Text(
                                 text = localDeviceName,
@@ -169,18 +219,25 @@ fun SettingsScreen(
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "Discoverable: 300s (Active Mesh Mode)",
+                                text = "Discoverable: 3600s (Active Mesh Mode)",
                                 color = NearBlack.copy(alpha = 0.5f),
                                 fontSize = 12.sp
                             )
                         }
 
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Edit Device Name",
-                            tint = TheMint,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        IconButton(
+                            onClick = {
+                                editNameInput = localDeviceName
+                                showEditNameDialog = true
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit Device Name",
+                                tint = TheMint,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -446,6 +503,95 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+
+    // Avatar chooser Grid dialog
+    if (showAvatarDialog) {
+        val mockups = remember {
+            listOf(
+                AvatarMockup(1, Icons.Default.Person, Color(0xFF00A198)),
+                AvatarMockup(2, Icons.Default.Favorite, Color(0xFFFF5252)),
+                AvatarMockup(3, Icons.Default.Star, Color(0xFFFFCA28)),
+                AvatarMockup(4, Icons.Default.Face, Color(0xFF42A5F5)),
+                AvatarMockup(5, Icons.Default.Build, Color(0xFF66BB6A)),
+                AvatarMockup(6, Icons.Default.Lock, Color(0xFFAB47BC)),
+                AvatarMockup(7, Icons.Default.Home, Color(0xFFFF7043)),
+                AvatarMockup(8, Icons.Default.LocationOn, Color(0xFF5C6BC0)),
+                AvatarMockup(9, Icons.Default.ThumbUp, Color(0xFFEC407A)),
+                AvatarMockup(10, Icons.Default.Settings, Color(0xFF26A69A)),
+                AvatarMockup(11, Icons.Default.Info, Color(0xFF26C6DA)),
+                AvatarMockup(12, Icons.Default.ShoppingCart, Color(0xFF78909C)),
+                AvatarMockup(13, Icons.Default.Email, Color(0xFF8D6E63)),
+                AvatarMockup(14, Icons.Default.Call, Color(0xFFD4AF37)),
+                AvatarMockup(15, Icons.Default.Check, Color(0xFF00796B)),
+                AvatarMockup(16, Icons.Default.Warning, Color(0xFFD32F2F))
+            )
+        }
+
+        AlertDialog(
+            onDismissRequest = { showAvatarDialog = false },
+            title = { Text("Choose Profile Avatar", fontWeight = FontWeight.Bold, color = NearBlack) },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Select from 16 default offline mockup icons to customize your profile card.",
+                        fontSize = 12.sp,
+                        color = NearBlack.copy(alpha = 0.5f),
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        for (i in 0 until 4) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+                            ) {
+                                for (j in 0 until 4) {
+                                    val index = i * 4 + j
+                                    if (index < mockups.size) {
+                                        val avatar = mockups[index]
+                                        Box(
+                                            modifier = Modifier
+                                                .size(50.dp)
+                                                .clip(CircleShape)
+                                                .background(avatar.backgroundColor)
+                                                .border(
+                                                    width = if (selectedAvatarId == avatar.id) 3.dp else 0.dp,
+                                                    color = if (selectedAvatarId == avatar.id) NearBlack else Color.Transparent,
+                                                    shape = CircleShape
+                                                )
+                                                .clickable {
+                                                    prefs.edit().putInt("profile_avatar_id", avatar.id).apply()
+                                                    selectedAvatarId = avatar.id
+                                                    showAvatarDialog = false
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = avatar.icon,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAvatarDialog = false }) {
+                    Text("Close", color = LatteDark)
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(16.dp)
+        )
     }
 
     // Rename dialog overlay

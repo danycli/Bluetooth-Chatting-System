@@ -438,12 +438,30 @@ fun ChatListItem(
                 Column(
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(
-                        text = chat.senderName,
-                        color = NearBlack,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = chat.senderName,
+                            color = NearBlack,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isConnected) "Online" else "Offline",
+                            color = if (isConnected) TheMint else NearBlack.copy(alpha = 0.4f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isConnected) TheMint.copy(alpha = 0.15f) else IceLatte)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = chat.messageText,
@@ -468,7 +486,7 @@ fun ChatListItem(
                     fontWeight = FontWeight.Medium
                 )
                 // Unread message badge (displays if incoming and unanswered)
-                if (!chat.isSent) {
+                if (!chat.isSent && !chat.isRead) {
                     Box(
                         modifier = Modifier
                             .size(18.dp)

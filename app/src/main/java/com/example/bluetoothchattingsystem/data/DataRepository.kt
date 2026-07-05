@@ -11,6 +11,7 @@ import androidx.core.app.NotificationCompat
 import com.example.bluetoothchattingsystem.R
 import com.example.bluetoothchattingsystem.data.bluetooth.BluetoothController
 import com.example.bluetoothchattingsystem.data.bluetooth.BluetoothDeviceDomain
+import com.example.bluetoothchattingsystem.data.bluetooth.ConnectionState
 import com.example.bluetoothchattingsystem.data.local.MessageDao
 import com.example.bluetoothchattingsystem.data.local.MessageEntity
 import kotlinx.coroutines.CoroutineScope
@@ -48,10 +49,33 @@ class DataRepository(
                         senderName = currentDevice.name ?: "Unknown",
                         messageText = messageText,
                         timestamp = System.currentTimeMillis(),
-                        isSent = false
+                        isSent = false,
+                        isRead = false // mark incoming messages as unread
                     )
                     messageDao.insertMessage(message)
                     showNotification(message.senderName, messageText)
+                }
+            }
+        }
+
+        // Collect connection state changes to notify and update database names
+        repositoryScope.launch {
+            var lastConnectedAddress: String? = null
+            bluetoothController.connectedDevice.collect { device ->
+                if (device != null && device.connectionState == ConnectionState.CONNECTED) {
+                    if (lastConnectedAddress != device.address) {
+                        lastConnectedAddress = device.address
+                        
+                        // 1. Show notification
+                        showConnectionNotification(device.name ?: "Unknown Device")
+                        
+                        // 2. Update DB names
+                        if (!device.name.isNullOrBlank()) {
+                            messageDao.updateSenderName(device.address, device.name)
+                        }
+                    }
+                } else if (device == null || device.connectionState == ConnectionState.DISCONNECTED) {
+                    lastConnectedAddress = null
                 }
             }
         }
@@ -165,5 +189,39 @@ class DataRepository(
 
     suspend fun wipeLocalVault() {
         messageDao.clearAllMessages()
+    }
+
+    suspend fun markConversationAsRead(senderAddress: String) {
+        messageDao.markConversationAsRead(senderAddress)
+    }
+
+    private fun showConnectionNotification(deviceName: String) {
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        val intent = Intent(context, com.example.bluetoothchattingsystem.MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.drawable.logoo)
+            .setContentTitle("B-Chat Node Connected")
+            .setContentText("Successfully connected to peer: $deviceName")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+
+        val notificationId = 10002
+        try {
+            notificationManager.notify(notificationId, builder.build())
+        } catch (e: SecurityException) {
+            Log.e("DataRepository", "Missing notification posting permission", e)
+        }
     }
 }

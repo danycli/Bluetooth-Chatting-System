@@ -119,7 +119,7 @@ class AndroidBluetoothController(
         // Prompt user to enable Bluetooth discoverability for 300 seconds so others can find us
         try {
             val discoverIntent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).apply {
-                putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)
+                putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 3600)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(discoverIntent)

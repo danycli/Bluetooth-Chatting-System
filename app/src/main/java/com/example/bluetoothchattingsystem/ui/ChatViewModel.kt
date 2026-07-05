@@ -41,6 +41,9 @@ class ChatViewModel(
 
     fun setPeerAddress(address: String) {
         _selectedAddress.value = address
+        viewModelScope.launch {
+            repository.markConversationAsRead(address)
+        }
     }
 
     fun updateTypedText(text: String) {
