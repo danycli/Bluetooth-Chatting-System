@@ -31,6 +31,7 @@ class DataRepository(
     val scannedDevices: StateFlow<List<BluetoothDeviceDomain>> = bluetoothController.scannedDevices
     val connectedDevice: StateFlow<BluetoothDeviceDomain?> = bluetoothController.connectedDevice
     val isBluetoothEnabled: StateFlow<Boolean> = bluetoothController.isBluetoothEnabled
+    val localDeviceName: StateFlow<String> = bluetoothController.localDeviceName
 
     val lastMessages: Flow<List<MessageEntity>> = messageDao.getAllLastMessages()
 
@@ -138,12 +139,28 @@ class DataRepository(
         return success
     }
 
+    fun changeLocalDeviceName(name: String): Boolean {
+        return bluetoothController.changeLocalDeviceName(name)
+    }
+
+    fun requestBluetoothEnable() {
+        bluetoothController.onRequestBluetoothEnable?.invoke()
+    }
+
     fun setBluetoothEnabled(enabled: Boolean) {
         bluetoothController.setBluetoothEnabled(enabled)
     }
 
     suspend fun deleteConversation(address: String) {
         messageDao.deleteConversation(address)
+    }
+
+    suspend fun deleteMessageById(messageId: Int): Int {
+        return messageDao.deleteMessageById(messageId)
+    }
+
+    suspend fun updateMessageText(messageId: Int, newText: String): Int {
+        return messageDao.updateMessageText(messageId, newText)
     }
 
     suspend fun wipeLocalVault() {

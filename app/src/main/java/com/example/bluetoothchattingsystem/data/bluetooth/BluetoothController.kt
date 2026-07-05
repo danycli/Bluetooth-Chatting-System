@@ -8,6 +8,10 @@ interface BluetoothController {
     val connectedDevice: StateFlow<BluetoothDeviceDomain?>
     val incomingMessages: Flow<String>
     val isBluetoothEnabled: StateFlow<Boolean>
+    val localDeviceName: StateFlow<String>
+    var onRequestBluetoothEnable: (() -> Unit)?
+
+    fun changeLocalDeviceName(name: String): Boolean
 
     fun startDiscovery()
     fun stopDiscovery()

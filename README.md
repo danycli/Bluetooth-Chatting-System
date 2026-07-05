@@ -17,16 +17,24 @@ The user interface adheres to a strict design aesthetic with high legibility for
 
 ---
 
-## 🏗️ Technical Architecture
+## 🛠️ Tech Stack & Technical Architecture
 
-Built following modern Android development guidelines:
+The project is divided into two primary sub-systems: a native Android mobile application and a companion web-based UI prototype simulator:
 
-*   **Language & UI**: Kotlin & Jetpack Compose (Material Design 3).
-*   **Navigation**: Type-safe Jetpack Navigation3 using Kotlin Serialization.
-*   **Data Persistence**: Room Database SQLite mapping for secure local conversation logs.
-*   **Network Layer**: Multi-threaded Bluetooth Classic RFCOMM sockets on standard SPP UUID (`00001101-0000-1000-8000-00805F9B34FB`).
-*   **MVVM Pattern**: ViewModels manage UI states and communicate with a single-source-of-truth repository.
-*   **Emulator Fallback**: Automatic device detection switching to simulated discovery scans and automated chat bots when running inside Android Studio virtual devices.
+### 📱 Native Android App (B-Chat)
+*   **Language**: Kotlin
+*   **UI Framework**: Jetpack Compose with Material Design 3 (utilizing the custom Ice Latte & The Mint theme)
+*   **Navigation**: Type-safe Jetpack Navigation 3 using Kotlin Serialization
+*   **Data Persistence**: SQLite database mapped via Room Database for secure, robust local chat logs
+*   **Network Layer**: Multi-threaded Bluetooth Classic RFCOMM sockets targeting the standard Serial Port Profile (SPP) UUID (`00001101-0000-1000-8000-00805F9B34FB`)
+*   **Architecture Pattern**: MVVM (Model-View-ViewModel) with repositories serving as the single-source-of-truth
+*   **System Integration**: Background socket persistence via an Android Foreground Service, ongoing system notifications, and automated runtime permission request flows
+*   **Emulator Fallback**: Automatic hardware discovery detection that falls back to simulated device scans and automated chatbot agents inside Android Studio virtual devices
+
+### 💻 Web UI Prototype Simulator
+*   **Location**: [ui-prototype/](file:///c:/Users/sahib/AndroidStudioProjects/Bluetooth-Chatting-System/ui-prototype)
+*   **Technologies**: Semantic HTML5, Vanilla CSS3 (custom CSS variables matching the app's palette), and Vanilla JavaScript
+*   **Features**: Interactive phone screen simulator, 8-screen Figma canvas grid walkthrough, and a responsive component library explorer
 
 ---
 
@@ -118,6 +126,39 @@ android run --device=33071JEHN06517 --apks=app/build/outputs/apk/debug/app-debug
 *   **Foreground Background Listening Service**: Implemented `ChatService.kt` as a Foreground Service of type `connectedDevice` (Android 10+) to keep the socket thread connection active in the background.
 *   **Persistent Mesh Status Notification**: Configured the background service to post a sticky ongoing notification (*"B-Chat Mesh Active"*) to prevent the operating system from reclaiming resources.
 *   **Application Scope Lifecycle binding**: Managed database and controller instances inside `BChatApplication.kt` and updated `MainActivity.kt` to fetch them from the application class, ensuring socket threads survive activity shutdown.
+
+### Iteration 7
+*   **Automatic Reconnection Monitoring**: Implemented a reactive auto-reconnect loop in `ChatViewModel.kt` that monitors the target device's connection status.
+*   **Connection Recovery Delay**: If a chat link drops, the loop waits for a 3-second delay and automatically dispatches a new connection attempt to the target device.
+*   **Screen Binding**: Wired the monitoring coroutines inside the `LaunchedEffect` in `ChatDetailScreen.kt` to automatically start when viewing a conversation thread.
+
+### Iteration 8
+*   **One-Time Onboarding**: Wired a SharedPreferences flag `has_completed_onboarding` in `Navigation.kt` to remember user onboarding state, bypassing it automatically on all subsequent launches.
+*   **Message Edit & Delete Functionality**: Added targeting update/delete queries to `MessageDao`, `DataRepository`, and `ChatViewModel`.
+*   **Context Dropdown Menu & Dialogs**: Integrated long-press event handlers on message bubbles to show context menus. Added editing dialog boxes and delete confirmations.
+*   **UI Alignment Polishing**: Enhanced styling for message balloons, avatar borders, connection dot labels, and top bars for a clean Material 3 look.
+
+### Iteration 9
+*   **Editable Local Device Name**: Bound the "My Device" settings card to a reactive `localDeviceName` state flow that reads the phone's default Bluetooth hardware name on startup.
+*   **System Name Updates (Over-the-Air visibility)**: Implemented `changeLocalDeviceName` to directly set the hardware's `bluetoothAdapter.name`, meaning nearby scanning devices will discover the phone under this new customized name.
+*   **Rename dialog & Pencil edit icon**: Made the settings profile card clickable and added a pencil edit icon, showing a rename AlertDialog to input and save the new name.
+*   **Settings Back Button**: Configured an `onBackClick` callback parameter and back navigation button inside the Settings `TopAppBar` to return safely to the conversation history.
+
+### Iteration 10
+*   **Automatic Discoverability Prompts**: Triggered a system discoverability request dialog (`ACTION_REQUEST_DISCOVERABLE` for 300 seconds) when starting discovery, making sure the phone's custom name is visible to other devices.
+*   **Uncached Real-Time Name Scanning**: Updated the discovery broadcast receiver in `AndroidBluetoothController.kt` to lookup names via `intent.getStringExtra(BluetoothDevice.EXTRA_NAME)` first. This bypasses Android's local OS Bluetooth database cache, allowing newly set custom names to show up instantly on scans.
+
+### Iteration 11
+*   **Edge-to-Edge System Bar Redesign**: Enforced transparent status bars with high-contrast system icons inside `MainActivity.kt` and consumed nested window insets inside `Navigation.kt` to prevent draw overlapping.
+*   **In-App Bluetooth Enabling**: Implemented custom system-level prompts (`ACTION_REQUEST_ENABLE`) to toggle Bluetooth hardware directly from the B-Chat UI without redirecting to settings.
+*   **Chats Screen Overhaul**: Integrated pill-shaped search bars, scan FAB buttons, pulsing Radar empty states, swipe-to-dismiss (Delete / Pin) gestures, initials avatars, and unread badges.
+*   **Nearby Screen Overhaul**: Created concentric pulsing waves, breathing skeleton shimmer loaders, dynamic signal/distance indicators, and long-press Device Diagnostics alerts.
+*   **Settings Screen Overhaul**: Restructured Profile cards (showing MAC address and discoverability status), organized toggles into preference cards, separated danger zones, and created detailed About sections.
+
+
+
+
+
 
 
 

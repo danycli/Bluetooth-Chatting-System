@@ -1,10 +1,13 @@
 package com.example.bluetoothchattingsystem
 
 import android.Manifest
+import android.bluetooth.BluetoothAdapter
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -32,14 +35,43 @@ class MainActivity : ComponentActivity() {
         repository = app.repository
 
         // Launch background Foreground listening Service
-        val serviceIntent = android.content.Intent(this, ChatService::class.java)
+        val serviceIntent = Intent(this, ChatService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent)
         } else {
             startService(serviceIntent)
         }
 
-        enableEdgeToEdge()
+        // Configure edge-to-edge transparent system bars with dark icons (since base is light/latte background)
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            ),
+            navigationBarStyle = SystemBarStyle.light(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            )
+        )
+
+        // Activity Result Launcher for In-App Bluetooth Enable requests
+        val requestBluetoothLauncher = registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            if (result.resultCode == RESULT_OK) {
+                // If Bluetooth enabled successfully, start server and scanning
+                (bluetoothController as? AndroidBluetoothController)?.let {
+                    it.startServer()
+                    it.startDiscovery()
+                }
+            }
+        }
+
+        // Assign the enable request callback to controller
+        bluetoothController.onRequestBluetoothEnable = {
+            val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+            requestBluetoothLauncher.launch(enableBtIntent)
+        }
 
         // Configure all permissions for both legacy and API 31+ / 33+ contexts
         val permissions = mutableListOf(
@@ -65,7 +97,6 @@ class MainActivity : ComponentActivity() {
             } else true
             
             if (connectGranted) {
-                // Instantly try to start the RFCOMM socket server once permitted
                 (bluetoothController as? AndroidBluetoothController)?.startServer()
             }
         }

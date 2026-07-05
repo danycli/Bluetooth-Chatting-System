@@ -26,6 +26,16 @@ class MockBluetoothController : BluetoothController {
     private val _isBluetoothEnabled = MutableStateFlow(true)
     override val isBluetoothEnabled: StateFlow<Boolean> = _isBluetoothEnabled.asStateFlow()
 
+    private val _localDeviceName = MutableStateFlow("Mock B-Chat Node")
+    override val localDeviceName: StateFlow<String> = _localDeviceName.asStateFlow()
+
+    override var onRequestBluetoothEnable: (() -> Unit)? = null
+
+    override fun changeLocalDeviceName(name: String): Boolean {
+        _localDeviceName.value = name
+        return true
+    }
+
     private val scope = CoroutineScope(Dispatchers.Main)
     private var scanJob: Job? = null
     private var connectionJob: Job? = null

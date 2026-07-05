@@ -54,6 +54,7 @@ fun MainNavigation(repository: DataRepository) {
     val showBottomBar = currentKey == ChatList || currentKey == Nearby || currentKey == Settings
 
     Scaffold(
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (showBottomBar) {
                 NavigationBar(
@@ -153,25 +154,34 @@ fun MainNavigation(repository: DataRepository) {
                     
                     // 1. Splash Route
                     entry<Splash> { _ ->
+                        val context = androidx.compose.ui.platform.LocalContext.current
                         SplashScreen(
                             onTimeout = {
                                 backStack.removeLastOrNull()
-                                backStack.add(Onboarding)
+                                val prefs = context.getSharedPreferences("bchat_prefs", android.content.Context.MODE_PRIVATE)
+                                val hasCompletedOnboarding = prefs.getBoolean("has_completed_onboarding", false)
+                                if (hasCompletedOnboarding) {
+                                    backStack.add(ChatList)
+                                } else {
+                                    backStack.add(Onboarding)
+                                }
                             }
                         )
                     }
 
                     // 2. Onboarding Route
                     entry<Onboarding> { _ ->
+                        val context = androidx.compose.ui.platform.LocalContext.current
                         OnboardingScreen(
                             onFinished = {
+                                val prefs = context.getSharedPreferences("bchat_prefs", android.content.Context.MODE_PRIVATE)
+                                prefs.edit().putBoolean("has_completed_onboarding", true).apply()
                                 backStack.removeLastOrNull()
                                 backStack.add(ChatList)
                             }
                         )
                     }
 
-                    // 3. Conversations History Route
                     entry<ChatList> { _ ->
                         ChatListScreen(
                             bluetoothViewModel = bluetoothViewModel,
@@ -181,6 +191,10 @@ fun MainNavigation(repository: DataRepository) {
                             onSettingsClick = {
                                 backStack.removeLastOrNull()
                                 backStack.add(Settings)
+                            },
+                            onScanClick = {
+                                backStack.removeLastOrNull()
+                                backStack.add(Nearby)
                             }
                         )
                     }
@@ -210,7 +224,11 @@ fun MainNavigation(repository: DataRepository) {
                     // 6. Settings preferences Route
                     entry<Settings> { _ ->
                         SettingsScreen(
-                            bluetoothViewModel = bluetoothViewModel
+                            bluetoothViewModel = bluetoothViewModel,
+                            onBackClick = {
+                                backStack.removeLastOrNull()
+                                backStack.add(ChatList)
+                            }
                         )
                     }
                 }

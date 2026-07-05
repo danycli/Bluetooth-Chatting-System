@@ -19,6 +19,11 @@ class BluetoothViewModel(
     val scannedDevices: StateFlow<List<BluetoothDeviceDomain>> = repository.scannedDevices
     val connectedDevice: StateFlow<BluetoothDeviceDomain?> = repository.connectedDevice
     val isBluetoothEnabled: StateFlow<Boolean> = repository.isBluetoothEnabled
+    val localDeviceName: StateFlow<String> = repository.localDeviceName
+
+    fun changeLocalDeviceName(name: String): Boolean {
+        return repository.changeLocalDeviceName(name)
+    }
 
     val lastConversations: StateFlow<List<MessageEntity>> = repository.lastMessages
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -52,6 +57,10 @@ class BluetoothViewModel(
 
     fun setBluetoothEnabled(enabled: Boolean) {
         repository.setBluetoothEnabled(enabled)
+    }
+
+    fun requestBluetoothEnable() {
+        repository.requestBluetoothEnable()
     }
 
     fun deleteConversation(address: String) {

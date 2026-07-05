@@ -45,6 +45,17 @@ class AndroidBluetoothController(
     private val _isBluetoothEnabled = MutableStateFlow(bluetoothAdapter?.isEnabled == true)
     override val isBluetoothEnabled: StateFlow<Boolean> = _isBluetoothEnabled.asStateFlow()
 
+    private val _localDeviceName = MutableStateFlow(
+        try {
+            bluetoothAdapter?.name
+        } catch (e: SecurityException) {
+            null
+        } ?: "B-Chat Device"
+    )
+    override val localDeviceName: StateFlow<String> = _localDeviceName.asStateFlow()
+
+    override var onRequestBluetoothEnable: (() -> Unit)? = null
+
     private val scope = CoroutineScope(Dispatchers.IO)
 
     private val uuid = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB") // SPP UUID
@@ -65,7 +76,7 @@ class AndroidBluetoothController(
                     }
                     device?.let { dev ->
                         try {
-                            val name = dev.name
+                            val name = intent.getStringExtra(BluetoothDevice.EXTRA_NAME) ?: dev.name
                             val address = dev.address
                             val exists = _scannedDevices.value.any { it.address == address }
                             if (!exists) {
@@ -104,6 +115,18 @@ class AndroidBluetoothController(
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) return
         _scannedDevices.value = emptyList()
         startServer() // Ensure server is started once permissions are granted
+        
+        // Prompt user to enable Bluetooth discoverability for 300 seconds so others can find us
+        try {
+            val discoverIntent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).apply {
+                putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(discoverIntent)
+        } catch (e: SecurityException) {
+            Log.e("BluetoothController", "SecurityException requesting discoverability", e)
+        }
+
         try {
             if (bluetoothAdapter.isDiscovering) {
                 bluetoothAdapter.cancelDiscovery()
@@ -176,6 +199,18 @@ class AndroidBluetoothController(
             }
         } catch (e: SecurityException) {
             Log.e("BluetoothController", "Cannot enable/disable Bluetooth directly", e)
+        }
+    }
+
+    override fun changeLocalDeviceName(name: String): Boolean {
+        if (bluetoothAdapter == null) return false
+        return try {
+            bluetoothAdapter.name = name
+            _localDeviceName.value = name
+            true
+        } catch (e: SecurityException) {
+            Log.e("BluetoothController", "SecurityException changing adapter name", e)
+            false
         }
     }
 
