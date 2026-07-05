@@ -42,9 +42,15 @@ class ChatViewModel(
 
     fun setPeerAddress(address: String) {
         _selectedAddress.value = address
+        repository.activeChatAddress = address
         viewModelScope.launch {
             repository.markConversationAsRead(address)
         }
+    }
+
+    fun clearPeerAddress() {
+        _selectedAddress.value = ""
+        repository.activeChatAddress = null
     }
 
     fun updateTypedText(text: String) {
@@ -94,15 +100,51 @@ class ChatViewModel(
     }
 
     fun deleteMessage(messageId: Int) {
+        val targetMessage = messages.value.find { it.id == messageId } ?: return
         viewModelScope.launch {
-            repository.deleteMessageById(messageId)
+            repository.deleteChatMessage(targetMessage)
         }
     }
 
     fun editMessage(messageId: Int, newText: String) {
+        val targetMessage = messages.value.find { it.id == messageId } ?: return
         if (newText.trim().isEmpty()) return
         viewModelScope.launch {
-            repository.updateMessageText(messageId, newText.trim())
+            repository.editChatMessage(targetMessage, newText.trim())
+        }
+    }
+
+    fun sendImageMessage(uri: android.net.Uri, context: android.content.Context) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val originalBitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+                inputStream?.close()
+
+                if (originalBitmap != null) {
+                    val maxDimension = 300
+                    val width = originalBitmap.width
+                    val height = originalBitmap.height
+                    val (newWidth, newHeight) = if (width > height) {
+                        val ratio = width.toFloat() / maxDimension
+                        Pair(maxDimension, (height / ratio).toInt())
+                    } else {
+                        val ratio = height.toFloat() / maxDimension
+                        Pair((width / ratio).toInt(), maxDimension)
+                    }
+                    val resizedBitmap = android.graphics.Bitmap.createScaledBitmap(originalBitmap, newWidth, newHeight, true)
+
+                    val outputStream = java.io.ByteArrayOutputStream()
+                    resizedBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, outputStream)
+                    val bytes = outputStream.toByteArray()
+                    outputStream.close()
+
+                    val base64Data = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                    repository.sendImageChatMessage(base64Data)
+                }
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Failed to process and send image", e)
+            }
         }
     }
 

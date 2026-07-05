@@ -127,9 +127,9 @@ fun SettingsScreen(
     var showEditNameDialog by remember { mutableStateOf(false) }
     var editNameInput by remember { mutableStateOf("") }
     
-    var soundAlertsEnabled by remember { mutableStateOf(true) }
-    var notificationsEnabled by remember { mutableStateOf(true) }
-    var autoScanEnabled by remember { mutableStateOf(false) }
+    var soundAlertsEnabled by remember { mutableStateOf(prefs.getBoolean("settings_sound_alerts", true)) }
+    var notificationsEnabled by remember { mutableStateOf(prefs.getBoolean("settings_push_notifications", true)) }
+    var autoScanEnabled by remember { mutableStateOf(prefs.getBoolean("settings_auto_scan", false)) }
     var showClearConfirmation by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -257,8 +257,25 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
+                        val localMacAddress = remember {
+                            var mac = prefs.getString("local_mac_address", null)
+                            if (mac == null) {
+                                val random = java.util.Random()
+                                mac = String.format(
+                                    java.util.Locale.US,
+                                    "02:%02X:%02X:%02X:%02X:%02X",
+                                    random.nextInt(256),
+                                    random.nextInt(256),
+                                    random.nextInt(256),
+                                    random.nextInt(256),
+                                    random.nextInt(256)
+                                )
+                                prefs.edit().putString("local_mac_address", mac).apply()
+                            }
+                            mac
+                        }
                         Text("MAC Address", fontSize = 12.sp, color = NearBlack.copy(alpha = 0.6f))
-                        Text("02:00:00:00:00:00 (Randomized)", fontSize = 12.sp, color = NearBlack)
+                        Text(localMacAddress, fontSize = 12.sp, color = NearBlack)
                     }
                 }
             }
@@ -303,7 +320,10 @@ fun SettingsScreen(
                         }
                         Switch(
                             checked = notificationsEnabled,
-                            onCheckedChange = { notificationsEnabled = it },
+                            onCheckedChange = { 
+                                notificationsEnabled = it 
+                                prefs.edit().putBoolean("settings_push_notifications", it).apply()
+                            },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,
                                 checkedTrackColor = TheMint,
@@ -336,7 +356,10 @@ fun SettingsScreen(
                         }
                         Switch(
                             checked = soundAlertsEnabled,
-                            onCheckedChange = { soundAlertsEnabled = it },
+                            onCheckedChange = { 
+                                soundAlertsEnabled = it 
+                                prefs.edit().putBoolean("settings_sound_alerts", it).apply()
+                            },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,
                                 checkedTrackColor = TheMint,
@@ -369,7 +392,10 @@ fun SettingsScreen(
                         }
                         Switch(
                             checked = autoScanEnabled,
-                            onCheckedChange = { autoScanEnabled = it },
+                            onCheckedChange = { 
+                                autoScanEnabled = it 
+                                prefs.edit().putBoolean("settings_auto_scan", it).apply()
+                            },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,
                                 checkedTrackColor = TheMint,

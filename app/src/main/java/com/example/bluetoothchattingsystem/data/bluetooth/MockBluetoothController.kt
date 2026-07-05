@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class MockBluetoothController : BluetoothController {
@@ -99,8 +100,20 @@ class MockBluetoothController : BluetoothController {
         // Simulate remote peer replying after a delay
         scope.launch {
             delay(1500)
-            val reply = mockResponses.random()
+            val reply = if (message.startsWith("__IMAGE_TRANSFER__|")) {
+                "Received your image attachment! Thanks!"
+            } else {
+                mockResponses.random()
+            }
             _incomingMessages.emit(reply)
+            
+            // If the bot selected the file transfer prompt, trigger an actual mock image transfer back
+            if (reply == "Let's test file transfer next.") {
+                delay(3000)
+                val tinyRedPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+                val packet = "__IMAGE_TRANSFER__|${System.currentTimeMillis()}|$tinyRedPng"
+                _incomingMessages.emit(packet)
+            }
         }
         return true
     }
@@ -110,6 +123,16 @@ class MockBluetoothController : BluetoothController {
         if (!enabled) {
             disconnect()
             _scannedDevices.value = emptyList()
+        }
+    }
+
+    override fun updateConnectedDeviceProfile(address: String, name: String, avatarId: Int) {
+        _connectedDevice.update { current ->
+            if (current?.address == address) {
+                current.copy(name = name, avatarId = avatarId)
+            } else {
+                current
+            }
         }
     }
 

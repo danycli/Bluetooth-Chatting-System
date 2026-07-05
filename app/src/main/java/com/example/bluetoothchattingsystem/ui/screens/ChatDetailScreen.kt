@@ -1,5 +1,10 @@
 package com.example.bluetoothchattingsystem.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -7,6 +12,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,6 +54,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -84,21 +91,39 @@ fun ChatDetailScreen(
     modifier: Modifier = Modifier
 ) {
     // Sync Viewmodel target peer and start auto-reconnection
-    LaunchedEffect(peerAddress) {
+    DisposableEffect(peerAddress) {
         chatViewModel.setPeerAddress(peerAddress)
         chatViewModel.monitorAndReconnect(peerAddress, peerName)
+        onDispose {
+            chatViewModel.clearPeerAddress()
+        }
     }
 
     val messages by chatViewModel.messages.collectAsState()
     val typedText by chatViewModel.typedText.collectAsState()
     val connectedDevice by chatViewModel.connectedDevice.collectAsState()
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+        onResult = { uri ->
+            if (uri != null) {
+                chatViewModel.sendImageMessage(uri, context)
+            }
+        }
+    )
     val scannedDevices by chatViewModel.scannedDevices.collectAsState()
 
     val isConnected = connectedDevice != null && connectedDevice!!.address == peerAddress && connectedDevice!!.connectionState == ConnectionState.CONNECTED
     val isConnecting = connectedDevice != null && connectedDevice!!.address == peerAddress && connectedDevice!!.connectionState == ConnectionState.CONNECTING
 
-    val peerDisplayName = remember(messages, peerName) {
-        messages.lastOrNull { !it.isSent }?.senderName ?: peerName
+    val peerDisplayName = remember(connectedDevice, messages, peerName) {
+        val device = connectedDevice
+        if (device != null && device.address.equals(peerAddress, ignoreCase = true) && !device.name.isNullOrBlank()) {
+            device.name
+        } else {
+            messages.lastOrNull { !it.isSent }?.senderName ?: peerName
+        }
     }
 
     val listState = rememberLazyListState()
@@ -110,6 +135,8 @@ fun ChatDetailScreen(
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deletingMessage by remember { mutableStateOf<MessageEntity?>(null) }
+
+    var activePreviewImagePath by remember { mutableStateOf<String?>(null) }
 
     // Scroll to last message when new messages arrive
     LaunchedEffect(messages.size) {
@@ -128,14 +155,15 @@ fun ChatDetailScreen(
                     ) {
                         // User Avatar with custom profile mockup picture
                         val peerAvatarId = remember(connectedDevice, scannedDevices, messages) {
-                            if (connectedDevice?.address == peerAddress) {
-                                connectedDevice!!.avatarId
+                            val device = connectedDevice
+                            if (device != null && device.address.equals(peerAddress, ignoreCase = true)) {
+                                device.avatarId
                             } else {
-                                val scanned = scannedDevices.find { it.address == peerAddress }
+                                val scanned = scannedDevices.find { it.address.equals(peerAddress, ignoreCase = true) }
                                 if (scanned != null) {
                                     scanned.avatarId
                                 } else {
-                                    messages.firstOrNull { !it.isSent }?.avatarId ?: 1
+                                    messages.lastOrNull()?.avatarId ?: 1
                                 }
                             }
                         }
@@ -267,18 +295,21 @@ fun ChatDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(messages) { message ->
-                        MessageBubble(
-                            message = message,
-                            onEditClick = { msg ->
-                                editingMessage = msg
-                                editDialogText = msg.messageText
-                                showEditDialog = true
-                            },
-                            onDeleteClick = { msg ->
-                                deletingMessage = msg
-                                showDeleteDialog = true
-                            }
-                        )
+                                MessageBubble(
+                                    message = message,
+                                    onEditClick = { msg ->
+                                        editingMessage = msg
+                                        editDialogText = msg.messageText
+                                        showEditDialog = true
+                                    },
+                                    onDeleteClick = { msg ->
+                                        deletingMessage = msg
+                                        showDeleteDialog = true
+                                    },
+                                    onImageClick = { path ->
+                                        activePreviewImagePath = path
+                                    }
+                                )
                     }
                 }
 
@@ -290,6 +321,21 @@ fun ChatDetailScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    IconButton(
+                        onClick = {
+                            imagePickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        enabled = isConnected
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AddCircle,
+                            contentDescription = "Attach File",
+                            tint = if (isConnected) TheMint else LatteDark
+                        )
+                    }
+
                     OutlinedTextField(
                         value = typedText,
                         onValueChange = { chatViewModel.updateTypedText(it) },
@@ -418,6 +464,46 @@ fun ChatDetailScreen(
                     shape = RoundedCornerShape(16.dp)
                 )
             }
+
+            // Full Screen Image Preview Dialog
+            if (activePreviewImagePath != null) {
+                val path = activePreviewImagePath!!.substringAfter("image:file://")
+                val file = java.io.File(path)
+                val bitmap = remember(path) {
+                    try {
+                        if (file.exists()) {
+                            android.graphics.BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap()
+                        } else null
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+                
+                if (bitmap != null) {
+                    AlertDialog(
+                        onDismissRequest = { activePreviewImagePath = null },
+                        title = null,
+                        text = {
+                            androidx.compose.foundation.Image(
+                                bitmap = bitmap,
+                                contentDescription = "Full Preview",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(280.dp)
+                                    .clip(RoundedCornerShape(12.dp)),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { activePreviewImagePath = null }) {
+                                Text("Close", color = TheMint, fontWeight = FontWeight.Bold)
+                            }
+                        },
+                        containerColor = Color.White,
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -428,6 +514,7 @@ fun MessageBubble(
     message: MessageEntity,
     onEditClick: (MessageEntity) -> Unit,
     onDeleteClick: (MessageEntity) -> Unit,
+    onImageClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isSent = message.isSent
@@ -448,6 +535,26 @@ fun MessageBubble(
 
     var showContextDropdown by remember { mutableStateOf(false) }
 
+    val isImage = message.messageText.startsWith("image:file://")
+    val imageBitmap = remember(message.messageText) {
+        try {
+            if (isImage) {
+                val path = message.messageText.substringAfter("image:file://")
+                val file = java.io.File(path)
+                if (file.exists()) {
+                    val bitmap = android.graphics.BitmapFactory.decodeFile(file.absolutePath)
+                    bitmap?.asImageBitmap()
+                } else {
+                    null
+                }
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = horizontalArrangement
@@ -467,12 +574,34 @@ fun MessageBubble(
                         )
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
-                    Text(
-                        text = message.messageText,
-                        color = textColor,
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp
-                    )
+                    if (isImage) {
+                        if (imageBitmap != null) {
+                            androidx.compose.foundation.Image(
+                                bitmap = imageBitmap,
+                                contentDescription = "Image Attachment",
+                                modifier = Modifier
+                                    .fillMaxWidth(0.9f)
+                                    .height(160.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { onImageClick(message.messageText) },
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else {
+                            Text(
+                                text = "Image attachment missing",
+                                color = textColor.copy(alpha = 0.6f),
+                                fontSize = 14.sp,
+                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = message.messageText,
+                            color = textColor,
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp
+                        )
+                    }
                 }
 
                 DropdownMenu(
@@ -512,8 +641,8 @@ fun MessageBubble(
                 if (isSent) {
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Delivered",
-                        color = TheMint,
+                        text = if (message.isDelivered) "Delivered" else "Sent",
+                        color = if (message.isDelivered) TheMint else NearBlack.copy(alpha = 0.4f),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Medium
                     )

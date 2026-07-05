@@ -36,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -55,6 +56,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -92,6 +94,10 @@ fun NearbyScreen(
     val connectedDevice by viewModel.connectedDevice.collectAsState()
     val isBluetoothEnabled by viewModel.isBluetoothEnabled.collectAsState()
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { context.getSharedPreferences("bchat_prefs", android.content.Context.MODE_PRIVATE) }
+    var trustedNodes by remember { mutableStateOf(prefs.getStringSet("trusted_nodes", emptySet()) ?: emptySet()) }
+
     var isRefreshing by remember { mutableStateOf(false) }
     val pullToRefreshState = rememberPullToRefreshState()
 
@@ -102,6 +108,15 @@ fun NearbyScreen(
     LaunchedEffect(isBluetoothEnabled) {
         if (isBluetoothEnabled) {
             viewModel.startScan()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            val autoScan = prefs.getBoolean("settings_auto_scan", false)
+            if (!autoScan) {
+                viewModel.stopScan()
+            }
         }
     }
 
@@ -222,9 +237,13 @@ fun NearbyScreen(
                                 val currentConnected = connectedDevice
                                 val isThisConnected = currentConnected != null && currentConnected.address == device.address
                                 val deviceWithConnectionState = if (isThisConnected) currentConnected!! else device
+                                val isTrusted = remember(trustedNodes, deviceWithConnectionState.address) {
+                                    trustedNodes.contains(deviceWithConnectionState.address)
+                                }
 
                                 DeviceListItemCard(
                                     device = deviceWithConnectionState,
+                                    isTrusted = isTrusted,
                                     onClick = {
                                         if (deviceWithConnectionState.connectionState == ConnectionState.CONNECTED) {
                                             onDeviceClick(deviceWithConnectionState)
@@ -247,10 +266,16 @@ fun NearbyScreen(
         }
     }
 
+    LaunchedEffect(infoDevice) {
+        if (infoDevice != null) {
+            isFavorite = trustedNodes.contains(infoDevice!!.address)
+        }
+    }
+
     // Long Press Device Info Alert dialog
     if (infoDevice != null) {
-        val dev = infoDevice!!
-        val rssi = dev.rssi
+        val liveDevice = scannedDevices.find { it.address == infoDevice!!.address } ?: infoDevice!!
+        val rssi = liveDevice.rssi
         val distance = remember(rssi) {
             val calculated = Math.pow(10.0, (-69 - rssi) / 20.0)
             String.format(Locale.US, "%.1f meters", calculated)
@@ -258,12 +283,12 @@ fun NearbyScreen(
 
         AlertDialog(
             onDismissRequest = { infoDevice = null },
-            title = { Text(dev.name ?: "Unnamed Device", fontWeight = FontWeight.Bold, color = NearBlack) },
+            title = { Text(liveDevice.name ?: "Unnamed Device", fontWeight = FontWeight.Bold, color = NearBlack) },
             text = {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("MAC Address: ${dev.address}", fontSize = 13.sp, color = NearBlack)
+                    Text("MAC Address: ${liveDevice.address}", fontSize = 13.sp, color = NearBlack)
                     Text("Signal Strength: ${rssi} dBm (RSSI)", fontSize = 13.sp, color = NearBlack)
                     Text("Estimated Distance: $distance", fontSize = 13.sp, color = NearBlack)
                     Text("Last Discovered: Just now (Active discovery scan)", fontSize = 13.sp, color = NearBlack.copy(alpha = 0.6f))
@@ -276,7 +301,17 @@ fun NearbyScreen(
                         Text("Add to trusted nodes", fontWeight = FontWeight.Medium, fontSize = 14.sp)
                         androidx.compose.material3.Switch(
                             checked = isFavorite,
-                            onCheckedChange = { isFavorite = it },
+                            onCheckedChange = { checked ->
+                                isFavorite = checked
+                                val newSet = trustedNodes.toMutableSet()
+                                if (checked) {
+                                    newSet.add(liveDevice.address)
+                                } else {
+                                    newSet.remove(liveDevice.address)
+                                }
+                                prefs.edit().putStringSet("trusted_nodes", newSet).apply()
+                                trustedNodes = newSet
+                            },
                             colors = androidx.compose.material3.SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,
                                 checkedTrackColor = TheMint
@@ -435,6 +470,7 @@ fun ShimmerDeviceCard() {
 @Composable
 fun DeviceListItemCard(
     device: BluetoothDeviceDomain,
+    isTrusted: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -494,14 +530,27 @@ fun DeviceListItemCard(
                 Spacer(modifier = Modifier.width(16.dp))
 
                 Column {
-                    Text(
-                        text = device.name ?: "Unnamed Device",
-                        color = NearBlack,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = device.name ?: "Unnamed Device",
+                            color = NearBlack,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (isTrusted) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = "Trusted Node",
+                                tint = TheMint,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(2.dp))
                     
                     Row(

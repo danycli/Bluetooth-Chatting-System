@@ -61,11 +61,21 @@ class AndroidBluetoothController(
     override val isBluetoothEnabled: StateFlow<Boolean> = _isBluetoothEnabled.asStateFlow()
 
     private val _localDeviceName = MutableStateFlow(
-        try {
-            bluetoothAdapter?.name
-        } catch (e: SecurityException) {
-            null
-        } ?: "B-Chat Device"
+        context.getSharedPreferences("bchat_prefs", Context.MODE_PRIVATE)
+            .getString("settings_display_name", null) ?: run {
+                val adapterName = try {
+                    bluetoothAdapter?.name
+                } catch (e: SecurityException) {
+                    null
+                }
+                if (adapterName != null && !adapterName.contains("|")) {
+                    adapterName
+                } else if (adapterName != null && adapterName.contains("|")) {
+                    adapterName.substringBefore("|")
+                } else {
+                    "B-Chat Device"
+                }
+            }
     )
     override val localDeviceName: StateFlow<String> = _localDeviceName.asStateFlow()
 
@@ -89,6 +99,59 @@ class AndroidBluetoothController(
     // Trackers for signal analysis and automatic sweeps
     private val lastSeenTimestamps = mutableMapOf<String, Long>()
 
+    // Map to reassemble chunked BLE GATT transmissions: transferId -> array of chunks
+    private val incomingTransfers = mutableMapOf<String, Array<String?>>()
+
+    @Volatile
+    private var currentWriteLimit = 20 // Default to 20 bytes (MTU 23) until negotiated
+
+    private fun handleChunkedPacket(deviceAddress: String, rawText: String): Boolean {
+        return when {
+            rawText.startsWith("__CHUNK_START__|") -> {
+                val parts = rawText.split("|")
+                val transferId = parts.getOrNull(1)
+                val totalChunks = parts.getOrNull(2)?.toIntOrNull()
+                if (transferId != null && totalChunks != null) {
+                    incomingTransfers[transferId] = arrayOfNulls(totalChunks)
+                }
+                true
+            }
+            rawText.startsWith("__CHUNK_DATA__|") -> {
+                val parts = rawText.split("|", limit = 4)
+                val transferId = parts.getOrNull(1)
+                val chunkIndex = parts.getOrNull(2)?.toIntOrNull()
+                val chunkData = parts.getOrNull(3)
+                if (transferId != null && chunkIndex != null && chunkData != null) {
+                    incomingTransfers[transferId]?.let { array ->
+                        if (chunkIndex in array.indices) {
+                            array[chunkIndex] = chunkData
+                        }
+                    }
+                }
+                true
+            }
+            rawText.startsWith("__CHUNK_END__|") -> {
+                val parts = rawText.split("|")
+                val transferId = parts.getOrNull(1)
+                if (transferId != null) {
+                    val array = incomingTransfers[transferId]
+                    if (array != null && array.all { it != null }) {
+                        val fullMessage = array.filterNotNull().joinToString("")
+                        scope.launch {
+                            val consumed = handleIncomingPacket(deviceAddress, fullMessage)
+                            if (!consumed) {
+                                _incomingMessages.emit(fullMessage)
+                            }
+                        }
+                    }
+                    incomingTransfers.remove(transferId)
+                }
+                true
+            }
+            else -> false
+        }
+    }
+
     // CALLBACKS DECLARATION - Keep them defined BEFORE any init block to avoid null initialization failures
     private val advertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
@@ -107,19 +170,22 @@ class AndroidBluetoothController(
             super.onScanResult(callbackType, result)
             val device = result.device
             val scanRecord = result.scanRecord
-            val name = scanRecord?.deviceName ?: device.name ?: "Unnamed Device"
+            val rawName = scanRecord?.deviceName ?: device.name ?: "Unnamed Device"
+            val cleanName = if (rawName.contains("|")) rawName.split("|").firstOrNull() ?: "B-Chat Node" else rawName
+            val avatarId = if (rawName.contains("|")) rawName.split("|").getOrNull(1)?.toIntOrNull() ?: 1 else 1
             val rssi = result.rssi
-            val address = device.address
+            val address = device.address.uppercase()
 
             val now = System.currentTimeMillis()
             lastSeenTimestamps[address] = now
 
             val existingIndex = _scannedDevices.value.indexOfFirst { it.address == address }
             val updatedDevice = BluetoothDeviceDomain(
-                name = name,
+                name = cleanName,
                 address = address,
                 connectionState = if (_connectedDevice.value?.address == address) _connectedDevice.value!!.connectionState else ConnectionState.DISCONNECTED,
-                rssi = rssi
+                rssi = rssi,
+                avatarId = avatarId
             )
 
             _scannedDevices.update { list ->
@@ -138,24 +204,30 @@ class AndroidBluetoothController(
 
     private val gattServerCallback = object : BluetoothGattServerCallback() {
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
-            super.onConnectionStateChange(device, status, newState)
-            Log.d("GattServer", "onConnectionStateChange: device=${device.address}, newState=$newState, status=$status")
+            val upperAddress = device.address.uppercase()
+            Log.d("GattServer", "onConnectionStateChange: device=$upperAddress, newState=$newState, status=$status")
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                val scannedInfo = _scannedDevices.value.find { it.address == device.address }
+                val scannedInfo = _scannedDevices.value.find { it.address.equals(upperAddress, ignoreCase = true) }
                 val domainDevice = BluetoothDeviceDomain(
                     name = scannedInfo?.name ?: device.name?.split("|")?.firstOrNull() ?: "B-Chat Node",
-                    address = device.address,
+                    address = upperAddress,
                     connectionState = ConnectionState.CONNECTED,
                     avatarId = scannedInfo?.avatarId ?: device.name?.split("|")?.getOrNull(1)?.toIntOrNull() ?: 1
                 )
                 _connectedDevice.value = domainDevice
                 activeGattDevice = device
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                if (_connectedDevice.value?.address == device.address) {
+                if (_connectedDevice.value?.address?.equals(upperAddress, ignoreCase = true) == true) {
                     _connectedDevice.value = null
                     activeGattDevice = null
                 }
             }
+        }
+
+        override fun onMtuChanged(device: BluetoothDevice, mtu: Int) {
+            super.onMtuChanged(device, mtu)
+            currentWriteLimit = (mtu - 3).coerceIn(20, 512)
+            Log.d("GattServer", "Server MTU changed: $mtu for ${device.address}, writeLimit=$currentWriteLimit")
         }
 
         override fun onCharacteristicWriteRequest(
@@ -171,9 +243,12 @@ class AndroidBluetoothController(
             if (value != null) {
                 val message = String(value, Charsets.UTF_8)
                 scope.launch {
-                    val consumed = handleIncomingPacket(device.address, message)
-                    if (!consumed) {
-                        _incomingMessages.emit(message)
+                    val consumedByChunking = handleChunkedPacket(device.address, message)
+                    if (!consumedByChunking) {
+                        val consumed = handleIncomingPacket(device.address, message)
+                        if (!consumed) {
+                            _incomingMessages.emit(message)
+                        }
                     }
                 }
             }
@@ -211,14 +286,29 @@ class AndroidBluetoothController(
     private val gattClientCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             super.onConnectionStateChange(gatt, status, newState)
-            Log.d("GattClient", "onConnectionStateChange: device=${gatt.device.address}, newState=$newState, status=$status")
+            val upperAddress = gatt.device.address.uppercase()
+            Log.d("GattClient", "onConnectionStateChange: device=$upperAddress, newState=$newState, status=$status")
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                gatt.discoverServices()
+                activeGattClient = gatt
+                Log.d("GattClient", "Connected. Requesting MTU of 517...")
+                gatt.requestMtu(517)
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 activeGattClient?.close()
                 activeGattClient = null
                 _connectedDevice.value = null
             }
+        }
+
+        override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
+            super.onMtuChanged(gatt, mtu, status)
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                currentWriteLimit = (mtu - 3).coerceIn(20, 512)
+                Log.d("BleController", "Client MTU negotiated: $mtu. Write limit=$currentWriteLimit")
+            } else {
+                Log.w("BleController", "Client MTU negotiation failed: status=$status")
+            }
+            Log.d("GattClient", "Discovering services...")
+            gatt.discoverServices()
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
@@ -235,10 +325,11 @@ class AndroidBluetoothController(
                     }
                 }
  
-                val scannedInfo = _scannedDevices.value.find { it.address == gatt.device.address }
+                val upperAddress = gatt.device.address.uppercase()
+                val scannedInfo = _scannedDevices.value.find { it.address.equals(upperAddress, ignoreCase = true) }
                 val domainDevice = BluetoothDeviceDomain(
                     name = scannedInfo?.name ?: gatt.device.name?.split("|")?.firstOrNull() ?: "B-Chat Node",
-                    address = gatt.device.address,
+                    address = upperAddress,
                     connectionState = ConnectionState.CONNECTED,
                     avatarId = scannedInfo?.avatarId ?: gatt.device.name?.split("|")?.getOrNull(1)?.toIntOrNull() ?: 1
                 )
@@ -271,9 +362,12 @@ class AndroidBluetoothController(
             if (value != null) {
                 val message = String(value, Charsets.UTF_8)
                 scope.launch {
-                    val consumed = handleIncomingPacket(gatt.device.address, message)
-                    if (!consumed) {
-                        _incomingMessages.emit(message)
+                    val consumedByChunking = handleChunkedPacket(gatt.device.address, message)
+                    if (!consumedByChunking) {
+                        val consumed = handleIncomingPacket(gatt.device.address, message)
+                        if (!consumed) {
+                            _incomingMessages.emit(message)
+                        }
                     }
                 }
             }
@@ -331,10 +425,11 @@ class AndroidBluetoothController(
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) return
         
         try {
-            val remoteDevice = bluetoothAdapter.getRemoteDevice(device.address)
+            val upperAddress = device.address.uppercase()
+            val remoteDevice = bluetoothAdapter.getRemoteDevice(upperAddress)
             
             // Set connecting state in domain model
-            _connectedDevice.value = device.copy(connectionState = ConnectionState.CONNECTING)
+            _connectedDevice.value = device.copy(address = upperAddress, connectionState = ConnectionState.CONNECTING)
             
             // Cancel discovery to free up BLE transceiver resources during connections
             stopDiscovery()
@@ -353,6 +448,35 @@ class AndroidBluetoothController(
     }
 
     override suspend fun sendMessage(message: String): Boolean {
+        val limit = currentWriteLimit
+        if (message.length <= limit) {
+            return sendRawMessage(message)
+        }
+
+        val transferId = System.currentTimeMillis().toString()
+        // Deduct envelope header overhead (approx 40 bytes) to fit within MTU limit
+        val chunkLimit = (limit - 40).coerceAtLeast(10)
+        val chunks = message.chunked(chunkLimit)
+        val totalChunks = chunks.size
+
+        // 1. Send START
+        var success = sendRawMessage("__CHUNK_START__|$transferId|$totalChunks")
+        if (!success) return false
+        delay(60)
+
+        // 2. Send DATA chunks
+        for (i in chunks.indices) {
+            success = sendRawMessage("__CHUNK_DATA__|$transferId|$i|${chunks[i]}")
+            if (!success) return false
+            delay(60)
+        }
+
+        // 3. Send END
+        success = sendRawMessage("__CHUNK_END__|$transferId")
+        return success
+    }
+
+    private suspend fun sendRawMessage(message: String): Boolean {
         val bytes = message.toByteArray(Charsets.UTF_8)
 
         // Case A: We are acting as a GATT Client (initiated connection)
@@ -364,7 +488,7 @@ class AndroidBluetoothController(
                 writeChar.value = bytes
                 writeChar.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
                 val success = client.writeCharacteristic(writeChar)
-                Log.d("BleController", "Client sendMessage write success=$success")
+                Log.d("BleController", "Client sendRawMessage write success=$success")
                 return success
             }
         }
@@ -378,7 +502,7 @@ class AndroidBluetoothController(
             if (notifyChar != null) {
                 notifyChar.value = bytes
                 val success = server.notifyCharacteristicChanged(device, notifyChar, false)
-                Log.d("BleController", "Server sendMessage notification success=$success")
+                Log.d("BleController", "Server sendRawMessage notification success=$success")
                 return success
             }
         }
@@ -399,30 +523,49 @@ class AndroidBluetoothController(
     }
 
     override fun changeLocalDeviceName(name: String): Boolean {
-        if (bluetoothAdapter == null) return false
-        return try {
-            val prefs = context.getSharedPreferences("bchat_prefs", Context.MODE_PRIVATE)
-            val avatarId = prefs.getInt("profile_avatar_id", 1)
-            val cleanName = name.replace("|", "")
-            val rawName = "$cleanName|$avatarId"
-            
-            bluetoothAdapter.name = rawName
-            _localDeviceName.value = cleanName
-            
-            // Broadcast the profile update to the currently connected device in real-time
-            val profilePacket = "__PROFILE_SYNC__|$cleanName|$avatarId"
-            scope.launch {
-                sendMessage(profilePacket)
-            }
+        val cleanName = name.replace("|", "").trim()
+        if (cleanName.isEmpty()) return false
 
-            if (bluetoothAdapter.isEnabled) {
-                stopAdvertising()
-                startAdvertising()
+        val prefs = context.getSharedPreferences("bchat_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putString("settings_display_name", cleanName).apply()
+        _localDeviceName.value = cleanName
+
+        val avatarId = prefs.getInt("profile_avatar_id", 1)
+        val rawName = "$cleanName|$avatarId"
+
+        if (bluetoothAdapter != null) {
+            try {
+                bluetoothAdapter.name = rawName
+            } catch (e: SecurityException) {
+                Log.e("BluetoothController", "SecurityException changing adapter name", e)
             }
-            true
-        } catch (e: SecurityException) {
-            Log.e("BluetoothController", "SecurityException changing adapter name", e)
-            false
+        }
+
+        // Broadcast the profile update to the currently connected device in real-time
+        val profilePacket = "__PROFILE_SYNC__|$cleanName|$avatarId"
+        scope.launch {
+            sendMessage(profilePacket)
+        }
+
+        if (bluetoothAdapter != null && bluetoothAdapter.isEnabled) {
+            stopAdvertising()
+            startAdvertising()
+        }
+        return true
+    }
+
+    override fun updateConnectedDeviceProfile(address: String, name: String, avatarId: Int) {
+        _connectedDevice.update { current ->
+            if (current != null && current.address.equals(address, ignoreCase = true)) {
+                current.copy(name = name, avatarId = avatarId)
+            } else {
+                BluetoothDeviceDomain(
+                    name = name,
+                    address = address,
+                    connectionState = ConnectionState.CONNECTED,
+                    avatarId = avatarId
+                )
+            }
         }
     }
 
@@ -494,10 +637,15 @@ class AndroidBluetoothController(
             
             // 1. Update _connectedDevice if it matches
             _connectedDevice.update { current ->
-                if (current?.address == deviceAddress) {
+                if (current != null && current.address.equals(deviceAddress, ignoreCase = true)) {
                     current.copy(name = name, avatarId = avatarId)
                 } else {
-                    current
+                    BluetoothDeviceDomain(
+                        name = name,
+                        address = deviceAddress,
+                        connectionState = ConnectionState.CONNECTED,
+                        avatarId = avatarId
+                    )
                 }
             }
             

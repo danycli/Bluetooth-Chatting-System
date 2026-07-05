@@ -35,4 +35,13 @@ interface MessageDao {
 
     @Query("UPDATE messages SET isRead = 1 WHERE senderAddress = :senderAddress AND isRead = 0")
     suspend fun markConversationAsRead(senderAddress: String): Int
+
+    @Query("DELETE FROM messages WHERE timestamp = :timestamp")
+    suspend fun deleteMessageByTimestamp(timestamp: Long): Int
+
+    @Query("UPDATE messages SET messageText = :newText WHERE timestamp = :timestamp")
+    suspend fun updateMessageByTimestamp(timestamp: Long, newText: String): Int
+
+    @Query("UPDATE messages SET isDelivered = 1 WHERE timestamp = :timestamp")
+    suspend fun markMessageAsDelivered(timestamp: Long): Int
 }

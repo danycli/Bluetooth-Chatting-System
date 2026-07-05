@@ -176,6 +176,75 @@ android run --device=33071JEHN06517 --apks=app/build/outputs/apk/debug/app-debug
 ### Iteration 16
 *   **Notification Icon Sizing & Color Corrections**: Replaced the solid app logo with the transparent vector `ic_launcher_foreground` for notification small icons, solving Android's grey-block forcing bug. Converted the full-color `logoo.png` app logo into a Bitmap to populate the notification's `largeIcon`, rendering B-Chat's actual logo in full color.
 
+### Iteration 17
+*   **Settings Switch State Persistence**: Saved user toggles for Push Notifications, Message Sound Alerts, and Auto Scan Nodes inside local `SharedPreferences` variables, resolving settings reset issues upon app relaunch or page exit.
+
+### Iteration 18
+*   **Settings Preferences Code Integrations**:
+    *   **Notification Toggles**: Conditionalised message popups inside `DataRepository.kt` on the `settings_push_notifications` toggle.
+    *   **Ringtone Sound Playback**: Added actual ringtone playback on incoming chat packets via the `RingtoneManager` TYPE_NOTIFICATION if `settings_sound_alerts` is enabled.
+    *   **Auto Scan Nodes**: Configured background scans to run continuously across screens on app launch/settings toggle if `settings_auto_scan` is active, updating `NearbyScreen.kt` cleanup handlers to match.
+
+### Iteration 19
+*   **Message Edits & Deletions BLE Sync**:
+    *   **Protocol Control Packets**: Formatted GATT message transmissions under prefixes `__MESSAGE_PAYLOAD__|`, `__MESSAGE_EDIT__|`, and `__MESSAGE_DELETE__|` containing the unique message timestamp.
+    *   **Peer Database Synchronization**: Registered Room queries inside `MessageDao.kt` to update or delete message rows matching the peer's timestamp, reactively editing/deleting peer logs in real-time.
+
+### Iteration 20
+*   **Trusted Nodes Preferences Integration**: Created a persistent MAC address set inside `SharedPreferences` to track and load trusted nodes. Toggling "Add to trusted nodes" inside the details dialog saves settings instantly and renders a Star icon next to the peer's name on scanned device cards inside `NearbyScreen.kt` for visual confirmation.
+
+### Iteration 21
+*   **Dynamic Message Delivery Handshake (ACKs)**:
+    *   **Delivery Status Column**: Extended the database model with an `isDelivered` column and updated Room DB to schema version 4.
+    *   **GATT Handshake ACKs**: Programmed B-Chat to reply with a `__MESSAGE_ACK__|<timestamp>` packet when a message payload is successfully written.
+    *   **Reactive Delivery Ticks**: Displays a grey "Sent" status indicator when sending, changing to a green "Delivered" state upon ACK packet receipt.
+
+### Iteration 22
+*   **Real-Time Signal & Distance Updates**: Tied the device info alert dialog to resolve matching items from the active scanned devices stream rather than using a static snapshot, updating RSSI and estimated meters in real-time as physical node distance changes.
+
+### Iteration 23
+*   **File & Image Attachment Transfers**:
+    *   **Attachment UI & Native Photo Picker**: Integrated picker buttons next to message inputs, launching Android's system visual picker.
+    *   **Size Restriction & Conversion**: Downscales selected pictures to 300px max dimensions, compresses to 70% JPEGs, and encodes to Base64 to respect BLE MTU structures.
+    *   **BLE Stream Transfer & Cache Reassembly**: Packages files using `__IMAGE_TRANSFER__` GATT payloads. Receiver decodes Base64 data to cache files, updates database logs, and displays layouts dynamically.
+    *   **Interactive Mock Bot Transfers**: Enables mockup chat bots to reply to incoming attachments and automatically transmit valid mock Base64 images when the file transfer test is simulated.
+
+### Iteration 24
+*   **Dead Boilerplate Code Cleanup**: Completely removed the unused legacy templated classes `MainScreen.kt` and `MainScreenViewModel.kt` under the `ui/main` package. Purged corresponding testing configurations `MainScreenTest.kt` and `MainScreenViewModelTest.kt` to optimize build sizes and eliminate structural noise.
+
+### Iteration 25
+*   **Stable Pseudo-Randomized Local MAC Addresses**: Instead of a hardcoded static dummy label, B-Chat now generates a unique and stable local MAC address on the first settings view load, saving it inside `SharedPreferences` to simulate a real hardware interface.
+
+### Iteration 26
+*   **Cleaned Web Prototype Assets**: Completely removed the legacy `ui-prototype` folder containing mock web HTML/JS/CSS source code files to reduce repository weight and maintain a clean production Android structure.
+
+### Iteration 27
+*   **Full-Screen Image Attachment Preview**: Configured image attachments inside chat conversation threads to be interactive. Tapping on an image view opens a beautiful, high-fidelity zoomed image preview dialog.
+
+### Iteration 28
+*   **Triple-Redundant User Profile Sync**:
+    *   **Custom Name Sandboxing**: Saves setting names directly in SharedPreferences, decoupled from hardware security/permission states on app startup.
+    *   **Advertisement Parsing**: Splitting raw scan names in BLE scanners extracts and renders clean display names and selected avatars in scanned Radar lists.
+    *   **Embedded Payload Metadata**: Outbound chat messages and image attachments now carry sender profile details. Receiver decodes them on packet arrival, updating memory state and database mappings.
+
+### Iteration 29
+*   **BLE GATT Packet Chunking & Reassembly**: Implemented a transparent segmentation layer inside BLE controller pipelines. Payloads larger than 400 characters are automatically split and transmitted sequentially with structured frames (`__CHUNK_START__`, `__CHUNK_DATA__`, `__CHUNK_END__`) and a safe 60ms delay. The receiving end buffers, reassembles, and processes payloads, bypassing BLE MTU limits to enable large texts and images to deliver reliably.
+
+### Iteration 30
+*   **Active Chat Read Status Sync & Live Top-Bar Naming**:
+    *   **Real-time Read Tracking**: Keeps track of the active chat address via a `DisposableEffect` mapping. Incoming messages received while actively on the chat screen are marked as read instantly, preventing unread indicator flashing on screen exit.
+    *   **Live Top-Bar Resolution**: Binds the detail screen top bar to live-resolve and display the peer's display name from the active connected profile state in real-time.
+
+### Iteration 31
+*   **Empty BLE GATT Write Filtering & Case Normalization**:
+    *   **Empty Packet Discarding**: Added blank checking in the repository flow (`messageText.trim().isBlank()`) to discard phantom empty writes sent by the Android Bluetooth stack upon GATT descriptor updates, preventing empty grey bubble rendering.
+    *   **MAC Case Normalization**: Forced BLE connection addresses to uppercase at the controller boundary. This prevents case mismatch conflicts (e.g., lower vs uppercase MAC strings) from bypassing SQLite Room database updates, restoring reliable real-time display name and avatar synchronization.
+
+### Iteration 32
+*   **BLE GATT MTU Negotiation & Dynamic Write Limits**:
+    *   **MTU Negotiation**: Implemented `gatt.requestMtu(517)` immediately upon client connection, initiating MTU negotiation to increase the payload size beyond the default 23-byte BLE limit.
+    *   **Dynamic Limits**: Programmed B-Chat to track negotiated MTU via `onMtuChanged` callbacks for both server and client sides, updating the dynamic limit `currentWriteLimit = mtu - 3` for the chunking engine, enabling packets (profile sync, large messages) to transmit without truncation.
+
 
 
 

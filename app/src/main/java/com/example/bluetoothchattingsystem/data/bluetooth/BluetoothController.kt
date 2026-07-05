@@ -21,5 +21,6 @@ interface BluetoothController {
     
     suspend fun sendMessage(message: String): Boolean
     fun setBluetoothEnabled(enabled: Boolean)
+    fun updateConnectedDeviceProfile(address: String, name: String, avatarId: Int)
     fun release()
 }
