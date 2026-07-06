@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.bluetoothchattingsystem.data.DataRepository
 import com.example.bluetoothchattingsystem.data.bluetooth.BluetoothDeviceDomain
 import com.example.bluetoothchattingsystem.data.local.MessageEntity
+import com.example.bluetoothchattingsystem.data.update.AppUpdateInfo
+import com.example.bluetoothchattingsystem.data.update.AppUpdateManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -13,8 +15,43 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class BluetoothViewModel(
-    private val repository: DataRepository
+    private val repository: DataRepository,
+    private val appUpdateManager: AppUpdateManager
 ) : ViewModel() {
+
+    private val _updateInfo = MutableStateFlow<AppUpdateInfo?>(null)
+    val updateInfo: StateFlow<AppUpdateInfo?> = _updateInfo.asStateFlow()
+
+    private val _isCheckingUpdate = MutableStateFlow(false)
+    val isCheckingUpdate: StateFlow<Boolean> = _isCheckingUpdate.asStateFlow()
+
+    private val _updateCheckError = MutableStateFlow<String?>(null)
+    val updateCheckError: StateFlow<String?> = _updateCheckError.asStateFlow()
+
+    val installedVersionName: String get() = appUpdateManager.getInstalledVersionName()
+
+    fun checkForUpdates(forceCheck: Boolean) {
+        viewModelScope.launch {
+            _isCheckingUpdate.value = true
+            _updateCheckError.value = null
+            try {
+                val info = appUpdateManager.checkForUpdates(force = forceCheck)
+                _updateInfo.value = info
+            } catch (e: Exception) {
+                _updateCheckError.value = e.localizedMessage ?: "Failed to check for updates"
+            } finally {
+                _isCheckingUpdate.value = false
+            }
+        }
+    }
+
+    fun dismissUpdateDialog() {
+        _updateInfo.value = null
+    }
+
+    fun clearUpdateCheckError() {
+        _updateCheckError.value = null
+    }
 
     val scannedDevices: StateFlow<List<BluetoothDeviceDomain>> = repository.scannedDevices
     val connectedDevice: StateFlow<BluetoothDeviceDomain?> = repository.connectedDevice

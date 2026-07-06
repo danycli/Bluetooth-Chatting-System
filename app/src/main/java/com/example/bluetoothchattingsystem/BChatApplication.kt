@@ -2,11 +2,18 @@ package com.example.bluetoothchattingsystem
 
 import android.app.Application
 import android.os.Build
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.example.bluetoothchattingsystem.data.DataRepository
 import com.example.bluetoothchattingsystem.data.bluetooth.AndroidBluetoothController
 import com.example.bluetoothchattingsystem.data.bluetooth.BluetoothController
 import com.example.bluetoothchattingsystem.data.bluetooth.MockBluetoothController
 import com.example.bluetoothchattingsystem.data.local.ChatDatabase
+import com.example.bluetoothchattingsystem.data.update.UpdateCheckWorker
+import java.util.concurrent.TimeUnit
 
 class BChatApplication : Application() {
 
@@ -33,5 +40,25 @@ class BChatApplication : Application() {
 
         val database = ChatDatabase.getDatabase(applicationContext)
         repository = DataRepository(applicationContext, database.messageDao(), bluetoothController)
+
+        schedulePeriodicUpdateCheck()
+    }
+
+    private fun schedulePeriodicUpdateCheck() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val updateWorkRequest = PeriodicWorkRequestBuilder<UpdateCheckWorker>(
+            24, TimeUnit.HOURS
+        )
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            "bchat_periodic_update_check",
+            ExistingPeriodicWorkPolicy.KEEP,
+            updateWorkRequest
+        )
     }
 }

@@ -59,6 +59,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -121,6 +122,30 @@ fun SettingsScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("bchat_prefs", android.content.Context.MODE_PRIVATE) }
     
+    val packageInfo = remember {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(context.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+            } else {
+                context.packageManager.getPackageInfo(context.packageName, 0)
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+    val installedVersionCode = remember(packageInfo) {
+        if (packageInfo != null) {
+            if (android.os.Build.VERSION.SDK_INT >= 28) {
+                packageInfo.longVersionCode.toInt()
+            } else {
+                @Suppress("DEPRECATION")
+                packageInfo.versionCode
+            }
+        } else {
+            1
+        }
+    }
+
     var selectedAvatarId by remember { mutableStateOf(prefs.getInt("profile_avatar_id", 1)) }
     var showAvatarDialog by remember { mutableStateOf(false) }
 
@@ -131,6 +156,8 @@ fun SettingsScreen(
     var notificationsEnabled by remember { mutableStateOf(prefs.getBoolean("settings_push_notifications", true)) }
     var autoScanEnabled by remember { mutableStateOf(prefs.getBoolean("settings_auto_scan", false)) }
     var showClearConfirmation by remember { mutableStateOf(false) }
+
+    var manualCheckTriggered by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize().statusBarsPadding(),
@@ -496,14 +523,14 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("Version", fontSize = 13.sp, color = NearBlack.copy(alpha = 0.6f))
-                        Text("1.0.4", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = NearBlack)
+                        Text(bluetoothViewModel.installedVersionName, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = NearBlack)
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("Build Number", fontSize = 13.sp, color = NearBlack.copy(alpha = 0.6f))
-                        Text("104", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = NearBlack)
+                        Text(installedVersionCode.toString(), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = NearBlack)
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -525,6 +552,54 @@ fun SettingsScreen(
                     ) {
                         Text("License", fontSize = 13.sp, color = NearBlack.copy(alpha = 0.6f))
                         Text("Apache License 2.0", fontSize = 13.sp, color = NearBlack)
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    val isCheckingUpdate by bluetoothViewModel.isCheckingUpdate.collectAsState()
+                    val updateCheckError by bluetoothViewModel.updateCheckError.collectAsState()
+                    val updateInfo by bluetoothViewModel.updateInfo.collectAsState()
+
+                    LaunchedEffect(updateCheckError) {
+                        if (updateCheckError != null) {
+                            android.widget.Toast.makeText(context, updateCheckError, android.widget.Toast.LENGTH_LONG).show()
+                            bluetoothViewModel.clearUpdateCheckError()
+                        }
+                    }
+
+                    LaunchedEffect(isCheckingUpdate) {
+                        if (manualCheckTriggered && !isCheckingUpdate) {
+                            manualCheckTriggered = false
+                            if (updateInfo == null && updateCheckError == null) {
+                                android.widget.Toast.makeText(context, "B-Chat is up to date", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+
+                    androidx.compose.material3.Button(
+                        onClick = {
+                            manualCheckTriggered = true
+                            bluetoothViewModel.checkForUpdates(forceCheck = true)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isCheckingUpdate,
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = TheMint,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        if (isCheckingUpdate) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Checking...", color = Color.White)
+                        } else {
+                            Text("Check for Updates", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
